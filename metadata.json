@@ -1,0 +1,6 @@
+{
+  "name": "پاکینو - سامانه جمع‌آوری پسماند و بازیافت",
+  "description": "اپلیکیشن هوشمند جمع‌آوری بازیافت شهروندان برای نورآباد ممسنی و کازرون با دو حالت شهروند و راننده، گزینه‌های نیکوکاری و دریافت وجه نقد",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
