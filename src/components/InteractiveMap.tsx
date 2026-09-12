@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { MapPin, Navigation, AlertTriangle, CheckCircle2, Search, Crosshair } from 'lucide-react';
+import React, { useEffect, useRef } from 'react';
+import { MapPin, Navigation, AlertTriangle, CheckCircle2, Crosshair } from 'lucide-react';
 import { CityId } from '../types';
 import { CITIES } from '../data/cities';
 import { checkInsideCityBoundary, toPersianDigits } from '../utils/persian';
@@ -7,8 +7,11 @@ import L from 'leaflet';
 
 interface InteractiveMapProps {
   cityId: CityId;
-  selectedCoords: { lat: number; lng: number };
-  onCoordsChange: (coords: { lat: number; lng: number }, isInside: boolean) => void;
+  selectedCoords?: { lat: number; lng: number };
+  centerLat?: number;
+  centerLng?: number;
+  onCoordsChange?: (coords: { lat: number; lng: number }, isInside: boolean) => void;
+  onPositionChange?: (lat: number, lng: number, isInside: boolean) => void;
   selectedNeighborhood?: string;
   onNeighborhoodSelect?: (name: string) => void;
 }
@@ -16,7 +19,10 @@ interface InteractiveMapProps {
 export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   cityId,
   selectedCoords,
+  centerLat,
+  centerLng,
   onCoordsChange,
+  onPositionChange,
   selectedNeighborhood,
   onNeighborhoodSelect
 }) => {
@@ -26,7 +32,22 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const circleRef = useRef<L.Circle | null>(null);
 
   const city = CITIES[cityId] || CITIES.noorabad;
-  const boundaryCheck = checkInsideCityBoundary(cityId, selectedCoords.lat, selectedCoords.lng);
+
+  // Safe coordinates extraction with fallback to city center
+  const activeLat = selectedCoords?.lat ?? centerLat ?? city.center.lat;
+  const activeLng = selectedCoords?.lng ?? centerLng ?? city.center.lng;
+
+  const boundaryCheck = checkInsideCityBoundary(cityId, activeLat, activeLng);
+
+  const notifyChange = (lat: number, lng: number) => {
+    const check = checkInsideCityBoundary(cityId, lat, lng);
+    if (onCoordsChange) {
+      onCoordsChange({ lat, lng }, check.isInside);
+    }
+    if (onPositionChange) {
+      onPositionChange(lat, lng, check.isInside);
+    }
+  };
 
   // Initialize Map
   useEffect(() => {
@@ -39,7 +60,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     }
 
     const map = L.map(mapContainerRef.current, {
-      center: [selectedCoords.lat, selectedCoords.lng],
+      center: [activeLat, activeLng],
       zoom: 14,
       zoomControl: false
     });
@@ -68,7 +89,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       iconAnchor: [0, 0]
     });
 
-    const marker = L.marker([selectedCoords.lat, selectedCoords.lng], {
+    const marker = L.marker([activeLat, activeLng], {
       icon: customIcon,
       draggable: true
     }).addTo(map);
@@ -87,15 +108,13 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     map.on('click', (e: L.LeafletMouseEvent) => {
       const { lat, lng } = e.latlng;
       marker.setLatLng([lat, lng]);
-      const check = checkInsideCityBoundary(cityId, lat, lng);
-      onCoordsChange({ lat, lng }, check.isInside);
+      notifyChange(lat, lng);
     });
 
     // Marker drag handler
     marker.on('dragend', () => {
       const pos = marker.getLatLng();
-      const check = checkInsideCityBoundary(cityId, pos.lat, pos.lng);
-      onCoordsChange({ lat: pos.lat, lng: pos.lng }, check.isInside);
+      notifyChange(pos.lat, pos.lng);
     });
 
     mapInstanceRef.current = map;
@@ -108,20 +127,19 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     };
   }, [cityId]);
 
-  // Sync marker and center when props change
+  // Sync marker and center when coords props change
   useEffect(() => {
     if (mapInstanceRef.current && markerRef.current) {
-      markerRef.current.setLatLng([selectedCoords.lat, selectedCoords.lng]);
+      markerRef.current.setLatLng([activeLat, activeLng]);
     }
-  }, [selectedCoords]);
+  }, [activeLat, activeLng]);
 
   // Recenter to city or neighborhood
   const handleRecenter = (lat: number, lng: number) => {
     if (mapInstanceRef.current && markerRef.current) {
       mapInstanceRef.current.flyTo([lat, lng], 15, { duration: 1 });
       markerRef.current.setLatLng([lat, lng]);
-      const check = checkInsideCityBoundary(cityId, lat, lng);
-      onCoordsChange({ lat, lng }, check.isInside);
+      notifyChange(lat, lng);
     }
   };
 
@@ -165,7 +183,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                   onNeighborhoodSelect?.(neighborhood);
                   handleRecenter(offsetLat, offsetLng);
                 }}
-                className={`text-xs px-3 py-1.5 rounded-xl border whitespace-nowrap transition flex items-center gap-1 ${
+                className={`text-xs px-3 py-1.5 rounded-xl border whitespace-nowrap transition flex items-center gap-1 cursor-pointer ${
                   isSelected
                     ? 'bg-emerald-600 text-white border-emerald-600 font-bold shadow-xs'
                     : 'bg-white text-slate-700 border-slate-200 hover:border-emerald-300'
@@ -188,7 +206,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           type="button"
           onClick={handleCurrentLocation}
           title="موقعیت فعلی من"
-          className="absolute top-3 left-3 z-20 bg-white/95 hover:bg-white text-slate-800 p-2.5 rounded-2xl shadow-md border border-slate-200 flex items-center gap-1.5 text-xs font-bold transition"
+          className="absolute top-3 left-3 z-20 bg-white/95 hover:bg-white text-slate-800 p-2.5 rounded-2xl shadow-md border border-slate-200 flex items-center gap-1.5 text-xs font-bold transition cursor-pointer"
         >
           <Crosshair className="w-4 h-4 text-emerald-600" />
           <span className="hidden sm:inline">موقعیت من</span>
@@ -198,7 +216,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         <button
           type="button"
           onClick={() => handleRecenter(city.center.lat, city.center.lng)}
-          className="absolute top-3 right-3 z-20 bg-white/95 hover:bg-white text-slate-800 px-3 py-2 rounded-2xl shadow-md border border-slate-200 text-xs font-bold transition flex items-center gap-1"
+          className="absolute top-3 right-3 z-20 bg-white/95 hover:bg-white text-slate-800 px-3 py-2 rounded-2xl shadow-md border border-slate-200 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
         >
           <Navigation className="w-3.5 h-3.5 text-slate-600" />
           <span>مرکز {city.name}</span>

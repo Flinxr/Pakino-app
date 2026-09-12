@@ -21,7 +21,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   if (!isOpen) return null;
 
   const city = CITIES[currentCity] || CITIES.noorabad;
-  const shareText = `من از سامانه هوشمند جمع‌آوری پسماند و بازیافت «پاکینو» در شهر ${city.name} استفاده می‌کنم. زباله‌های خشک مثل کارتن و پلاستیک رو تحویل بده و در قرعه‌کشی ماهانه شرکت کن یا نقداً پولش رو بگیر! لینک ثبت‌نام: https://pakino.ir?ref=${user.phone || 'noorabad'}`;
+  const shareText = `سامانه تفکیک بازیافت پاکینو (${city.name}): تحویل درب منزل با تسویه نقدی و شانس قرعه‌کشی طلا. ثبت: https://pakino.ir?ref=${user.phone || 'app'}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(shareText);

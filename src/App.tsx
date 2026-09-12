@@ -19,20 +19,45 @@ import {
   Wallet,
   CreditCard
 } from 'lucide-react';
-import { CityId, UserProfile, PickupRequest, WalletTransaction, WithdrawalRequest } from './types';
-import { CITIES } from './data/cities';
+import { 
+  CityId, 
+  UserProfile, 
+  PickupRequest, 
+  WalletTransaction, 
+  WithdrawalRequest,
+  DriverProfile,
+  ScheduledLottery,
+  LiveEventLottery,
+  LotteryWinner,
+  CharityProject,
+  HeroSlide,
+  WasteCategory
+} from './types';
+import { 
+  CITIES, 
+  INITIAL_DRIVERS, 
+  INITIAL_SCHEDULED_LOTTERIES, 
+  ACTIVE_LIVE_LOTTERY, 
+  PAST_LOTTERY_WINNERS, 
+  INITIAL_USERS_LIST,
+  CHARITY_PROJECTS,
+  INITIAL_HERO_SLIDES,
+  WASTE_CATEGORIES as INITIAL_WASTE_CATEGORIES
+} from './data/cities';
 import { toPersianDigits, formatTomans } from './utils/persian';
 import { Header } from './components/Header';
 import { CitizenHome } from './components/CitizenHome';
 import { NewPickupModal } from './components/NewPickupModal';
 import { HistoryView } from './components/HistoryView';
 import { DriverPanel } from './components/DriverPanel';
+import { AdminPanel } from './components/AdminPanel';
 import { AuthModal } from './components/AuthModal';
 import { FeedbackModal } from './components/FeedbackModal';
 import { ShareModal } from './components/ShareModal';
 import { LotterySection } from './components/LotterySection';
 import { WalletModal } from './components/WalletModal';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
+import { DriverRatingModal } from './components/DriverRatingModal';
 
 import { getUpcomingDays } from './utils/persian';
 
@@ -69,81 +94,21 @@ const generateInitialDemoRequests = (): PickupRequest[] => {
         street: 'میدان امام خمینی، کوی گلستان، پلاک ۱۲',
         neighborhood: 'کوی گلستان',
         plaque: '۱۲',
-        unit: '۲',
         isInsideBoundary: true
       },
       status: 'pending',
       createdAt: new Date().toISOString(),
-      lotteryTicketNumber: 'PK-A84920'
+      lotteryTicketNumber: 'PK-M19204'
     },
     {
       id: '1022',
       trackingCode: 'PK-1022',
-      userId: 'usr-103',
-      userName: 'مریم احمدی',
-      userPhone: '09173334455',
+      userId: 'user-1',
+      userName: 'فاطمه احمدی',
+      userPhone: '09173332211',
       cityId: 'noorabad',
       cityName: 'نورآباد ممسنی',
       type: 'cash',
-      payoutMethod: 'wallet',
-      dateStr: day0.dateStr,
-      dayOfWeek: day0.dayName,
-      timeSlot: '۹ تا ۱۲',
-      timeSlotId: 'morning',
-      estimatedKg: 22,
-      categories: ['cardboard', 'metal'],
-      approximatePayoutTomans: 330000,
-      address: {
-        lat: 30.1192,
-        lng: 51.5284,
-        street: 'خیابان طالقانی، کوچه بهار، پلاک ۵',
-        neighborhood: 'خیابان طالقانی',
-        plaque: '۵',
-        unit: '۱',
-        isInsideBoundary: true
-      },
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      lotteryTicketNumber: 'PK-C49201'
-    },
-    {
-      id: '1023',
-      trackingCode: 'PK-1023',
-      userId: 'usr-104',
-      userName: 'حسین لشکری',
-      userPhone: '09175556677',
-      cityId: 'noorabad',
-      cityName: 'نورآباد ممسنی',
-      type: 'cash',
-      payoutMethod: 'wallet',
-      dateStr: day0.dateStr,
-      dayOfWeek: day0.dayName,
-      timeSlot: '۹ تا ۱۲',
-      timeSlotId: 'morning',
-      estimatedKg: 18,
-      categories: ['plastic', 'metal'],
-      approximatePayoutTomans: 270000,
-      address: {
-        lat: 30.1125,
-        lng: 51.5170,
-        street: 'بلوار معلم، روبروی دانشگاه آزاد، کوچه لاله ۳',
-        neighborhood: 'بلوار معلم',
-        plaque: '۱۸',
-        isInsideBoundary: true
-      },
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      lotteryTicketNumber: 'PK-D77102'
-    },
-    {
-      id: '1024',
-      trackingCode: 'PK-1024',
-      userId: 'usr-105',
-      userName: 'فاطمه انصاری',
-      userPhone: '09176667788',
-      cityId: 'noorabad',
-      cityName: 'نورآباد ممسنی',
-      type: 'charity',
       payoutMethod: 'wallet',
       dateStr: day0.dateStr,
       dayOfWeek: day0.dayName,
@@ -254,7 +219,10 @@ const generateInitialDemoRequests = (): PickupRequest[] => {
       status: 'collected',
       createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
       lotteryTicketNumber: 'PK-B39102',
-      driverName: 'سفیر پاکیار ممسنی'
+      driverName: 'سفیر علی رضایی',
+      driverPhone: '09171239988',
+      vehicleModel: 'وانت پراید سفید مسقف',
+      vehiclePlate: 'ایران ۷۳ - ۴۵۶ ج ۱۲'
     }
   ];
 };
@@ -288,13 +256,13 @@ const INITIAL_TRANSACTIONS: WalletTransaction[] = [
 ];
 
 export default function App() {
-  // App City (Noorabad Mamasani or Kazeroon)
+  // App City
   const [currentCity, setCurrentCity] = useState<CityId>(() => {
     return (localStorage.getItem('pakino_city') as CityId) || 'noorabad';
   });
 
-  // Mode: citizen vs driver
-  const [userRole, setUserRole] = useState<'citizen' | 'driver'>('citizen');
+  // Mode: citizen vs driver vs admin
+  const [userRole, setUserRole] = useState<'citizen' | 'driver' | 'admin'>('citizen');
 
   // Active Navigation Tab for Citizen Mode
   const [activeCitizenTab, setActiveCitizenTab] = useState<'home' | 'history' | 'lottery'>('home');
@@ -305,6 +273,7 @@ export default function App() {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isWalletOpen, setIsWalletOpen] = useState(false);
+  const [ratingModalRequest, setRatingModalRequest] = useState<PickupRequest | null>(null);
 
   // User Profile
   const [user, setUser] = useState<UserProfile>(() => {
@@ -334,6 +303,86 @@ export default function App() {
       savedAccountHolder: 'علی حسینی'
     };
   });
+
+  // Drivers State
+  const [drivers, setDrivers] = useState<DriverProfile[]>(() => {
+    const saved = localStorage.getItem('pakino_drivers');
+    if (saved) {
+      try { return JSON.parse(saved); } catch {}
+    }
+    return INITIAL_DRIVERS;
+  });
+
+  // Scheduled Lotteries State
+  const [scheduledLotteries, setScheduledLotteries] = useState<ScheduledLottery[]>(() => {
+    const saved = localStorage.getItem('pakino_scheduled_lotteries');
+    if (saved) {
+      try { return JSON.parse(saved); } catch {}
+    }
+    return INITIAL_SCHEDULED_LOTTERIES;
+  });
+
+  // Live Event Lottery State (e.g. Father's Day, Code 110)
+  const [liveEventLottery, setLiveEventLottery] = useState<LiveEventLottery>(() => {
+    const saved = localStorage.getItem('pakino_live_event_lottery');
+    if (saved) {
+      try { return JSON.parse(saved); } catch {}
+    }
+    return ACTIVE_LIVE_LOTTERY;
+  });
+
+  // Winners List State
+  const [winnersList, setWinnersList] = useState<LotteryWinner[]>(() => {
+    const saved = localStorage.getItem('pakino_winners_list');
+    if (saved) {
+      try { return JSON.parse(saved); } catch {}
+    }
+    return PAST_LOTTERY_WINNERS;
+  });
+
+  // Users List State (for Admin Citizen Dossiers)
+  const [usersList, setUsersList] = useState<UserProfile[]>(() => {
+    const saved = localStorage.getItem('pakino_users_list');
+    if (saved) {
+      try { return JSON.parse(saved); } catch {}
+    }
+    return INITIAL_USERS_LIST;
+  });
+
+  // Charity & Social Responsibility Projects State
+  const [charityProjects, setCharityProjects] = useState<CharityProject[]>(() => {
+    const saved = localStorage.getItem('pakino_charity_projects');
+    if (saved) {
+      try { return JSON.parse(saved); } catch {}
+    }
+    return CHARITY_PROJECTS;
+  });
+
+  // Hero Slides & Banners State (Admin customizable)
+  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>(() => {
+    const saved = localStorage.getItem('pakino_hero_slides');
+    if (saved) {
+      try { return JSON.parse(saved); } catch {}
+    }
+    return INITIAL_HERO_SLIDES;
+  });
+
+  // Approved Waste Tariffs & Categories State (Admin customizable)
+  const [wasteCategories, setWasteCategories] = useState<WasteCategory[]>(() => {
+    const saved = localStorage.getItem('pakino_waste_categories');
+    if (saved) {
+      try { return JSON.parse(saved); } catch {}
+    }
+    return INITIAL_WASTE_CATEGORIES;
+  });
+
+  // Ticket Reset Announcement Banner
+  const [ticketResetAnnouncement, setTicketResetAnnouncement] = useState<string>('');
+
+  // Handle Admin Reset Tickets for previous period
+  const handleAnnounceResetTickets = (periodName: string) => {
+    setTicketResetAnnouncement(`دوره پیشین (${periodName}) با موفقیت قرعه‌کشی و به پایان رسید. کدهای شانس برای دوره جدید از صفر آغاز شدند.`);
+  };
 
   // Wallet Transactions State
   const [transactions, setTransactions] = useState<WalletTransaction[]>(() => {
@@ -373,6 +422,26 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('pakino_requests', JSON.stringify(requests));
   }, [requests]);
+
+  useEffect(() => {
+    localStorage.setItem('pakino_charity_projects', JSON.stringify(charityProjects));
+  }, [charityProjects]);
+
+  useEffect(() => {
+    localStorage.setItem('pakino_hero_slides', JSON.stringify(heroSlides));
+  }, [heroSlides]);
+
+  useEffect(() => {
+    localStorage.setItem('pakino_waste_categories', JSON.stringify(wasteCategories));
+  }, [wasteCategories]);
+
+  useEffect(() => {
+    localStorage.setItem('pakino_drivers', JSON.stringify(drivers));
+  }, [drivers]);
+
+  useEffect(() => {
+    localStorage.setItem('pakino_users_list', JSON.stringify(usersList));
+  }, [usersList]);
 
   // Handlers
   const handleCityChange = (newCity: CityId) => {
@@ -429,7 +498,9 @@ export default function App() {
               ...r,
               status: 'assigned',
               driverName: driverName,
-              driverPhone: '09171112233'
+              driverPhone: '09171239988',
+              vehicleModel: 'وانت پراید مسقف',
+              vehiclePlate: 'ایران ۷۳ - ۴۵۶ ج ۱۲'
             }
           : r
       )
@@ -444,14 +515,24 @@ export default function App() {
               ...r,
               status: 'assigned',
               driverName: driverName,
-              driverPhone: '09171112233'
+              driverPhone: '09171239988',
+              vehicleModel: 'وانت پراید مسقف',
+              vehiclePlate: 'ایران ۷۳ - ۴۵۶ ج ۱۲'
             }
           : r
       )
     );
   };
 
-  const handleDriverComplete = (requestId: string, actualKg: number, cashPaid: number) => {
+  const handleDriverComplete = (
+    requestId: string, 
+    actualKg: number, 
+    cashPaid: number, 
+    note?: string, 
+    paymentMode?: 'wallet' | 'direct_card',
+    ratingToCitizen?: number,
+    citizenFeedbackTags?: string[]
+  ) => {
     const targetReq = requests.find((r) => r.id === requestId);
 
     setRequests((prev) =>
@@ -462,14 +543,85 @@ export default function App() {
               status: 'collected',
               actualKg: actualKg,
               cashPaidTomans: cashPaid,
+              driverNote: note,
+              driverRatingToCitizen: ratingToCitizen,
               collectedAt: new Date().toISOString()
             }
           : r
       )
     );
 
-    // If cash payout, credit user's wallet!
-    if (cashPaid > 0 && targetReq) {
+    // If driver rated citizen, update citizen account rating & status warnings
+    if (ratingToCitizen !== undefined) {
+      setUser((prev) => {
+        const count = (prev.ratingCount || 0) + 1;
+        const currentScore = prev.rating || 5;
+        const newScore = Number(((currentScore * (count - 1) + ratingToCitizen) / count).toFixed(1));
+        let newStatus = prev.status || 'active';
+        let newWarningCount = prev.warningCount || 0;
+        let newStatusMsg = prev.statusMessage || '';
+
+        if (ratingToCitizen <= 2) {
+          newWarningCount += 1;
+          if (newWarningCount >= 3) {
+            newStatus = 'suspended';
+            newStatusMsg = 'حساب کاربری شما به دلیل دریافت ۳ اخطار تفکیک نامناسب یا غیبت در محل به حالت تعلیق درآمد.';
+          } else {
+            newStatus = 'warning';
+            newStatusMsg = `اخطار تفکیک: سفیر پاکینو به این تحویل امتیاز ${toPersianDigits(ratingToCitizen)} داده است. لطفاً در تفکیک صحیح پسماند دقت نمایید.`;
+          }
+        }
+
+        return {
+          ...prev,
+          rating: newScore,
+          ratingCount: count,
+          status: newStatus,
+          warningCount: newWarningCount,
+          statusMessage: newStatusMsg
+        };
+      });
+
+      // Update in usersList for Admin Dossier
+      if (targetReq) {
+        setUsersList((prevList) =>
+          prevList.map((u) => {
+            if (u.phone === targetReq.userPhone || u.id === targetReq.userId) {
+              const count = (u.ratingCount || 0) + 1;
+              const currentScore = u.rating || 5;
+              const newScore = Number(((currentScore * (count - 1) + ratingToCitizen) / count).toFixed(1));
+              let newStatus = u.status || 'active';
+              let newWarningCount = u.warningCount || 0;
+              let newStatusMsg = u.statusMessage || '';
+
+              if (ratingToCitizen <= 2) {
+                newWarningCount += 1;
+                if (newWarningCount >= 3) {
+                  newStatus = 'suspended';
+                  newStatusMsg = 'تعلیق خودکار حساب به دلیل دریافت ۳ اخطار پسماند نامناسب.';
+                } else {
+                  newStatus = 'warning';
+                  newStatusMsg = `ثبت اخطار توسط سفیر (امتیاز ${toPersianDigits(ratingToCitizen)}).`;
+                }
+              }
+
+              return {
+                ...u,
+                rating: newScore,
+                ratingCount: count,
+                status: newStatus,
+                warningCount: newWarningCount,
+                statusMessage: newStatusMsg
+              };
+            }
+            return u;
+          })
+        );
+      }
+    }
+
+    // If wallet payout mode, credit user's wallet!
+    if (cashPaid > 0 && targetReq && paymentMode !== 'direct_card') {
       setUser((prev) => ({
         ...prev,
         walletBalanceTomans: prev.walletBalanceTomans + cashPaid,
@@ -491,6 +643,79 @@ export default function App() {
 
       setTransactions((prev) => [newTx, ...prev]);
     }
+  };
+
+  const handleDriverFlagIssue = (
+    requestId: string,
+    issueFlag: 'citizen_absent' | 'waste_unprepared' | 'wrong_address',
+    note: string
+  ) => {
+    setRequests((prev) =>
+      prev.map((r) =>
+        r.id === requestId
+          ? {
+              ...r,
+              issueFlag: issueFlag,
+              issueNotes: note
+            }
+          : r
+      )
+    );
+    alert('گزارش عدم تحویل با موفقیت در سامانه و پنل مدیریت ثبت گردید.');
+  };
+
+  const handleSubmitDriverRating = (feedback: any) => {
+    const starRating = feedback.rating || 5;
+    const targetReq = requests.find((r) => r.id === feedback.requestId);
+
+    setRequests((prev) =>
+      prev.map((r) =>
+        r.id === feedback.requestId
+          ? {
+              ...r,
+              rating: starRating,
+              citizenRatingToDriver: starRating
+            }
+          : r
+      )
+    );
+
+    // Update driver in drivers list
+    setDrivers((prevDrivers) =>
+      prevDrivers.map((d) => {
+        if (targetReq && (d.name === targetReq.driverName || d.phone === targetReq.driverPhone)) {
+          const count = (d.ratingCount || 0) + 1;
+          const currentScore = d.rating || 5;
+          const newScore = Number(((currentScore * (count - 1) + starRating) / count).toFixed(1));
+          let newStatus = d.status || 'active';
+          let newWarningCount = d.warningCount || 0;
+          let newStatusMsg = d.statusMessage || '';
+
+          if (starRating <= 2) {
+            newWarningCount += 1;
+            if (newWarningCount >= 3) {
+              newStatus = 'suspended';
+              newStatusMsg = 'تعلیق حساب کاربری سفیر به دلیل دریافت ۳ گزارش منفی یا نارضایتی شهروندان.';
+            } else {
+              newStatus = 'warning';
+              newStatusMsg = `ثبت اخطار انضباطی به دلیل نارضایتی شهروند (امتیاز ${toPersianDigits(starRating)}).`;
+            }
+          }
+
+          return {
+            ...d,
+            rating: newScore,
+            ratingCount: count,
+            status: newStatus,
+            warningCount: newWarningCount,
+            statusMessage: newStatusMsg
+          };
+        }
+        return d;
+      })
+    );
+
+    alert('نظر و امتیاز شما برای سفیر پاکینو با موفقیت ثبت شد. متشکریم!');
   };
 
   // User Withdrawal from Wallet Handler
@@ -522,6 +747,17 @@ export default function App() {
     return true;
   };
 
+  const handleGoHome = () => {
+    if (userRole === 'admin') {
+      setUserRole('admin');
+    } else if (userRole === 'driver') {
+      setUserRole('driver');
+    } else {
+      setUserRole('citizen');
+      setActiveCitizenTab('home');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-emerald-500 selection:text-white pb-20 sm:pb-8 overflow-x-hidden w-full max-w-full">
       {/* PWA Install Prompt Banner */}
@@ -534,6 +770,7 @@ export default function App() {
         userRole={userRole}
         onRoleChange={setUserRole}
         user={user}
+        onGoHome={handleGoHome}
         onOpenAuth={() => setIsAuthOpen(true)}
         onOpenShare={() => setIsShareOpen(true)}
         onOpenLottery={() => {
@@ -546,14 +783,63 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-5xl w-full mx-auto px-3 sm:px-4 py-3 sm:py-5 overflow-x-hidden">
-        {userRole === 'driver' ? (
+        {userRole === 'admin' ? (
+          /* Admin View (پنل مدیریت و پایش هوشمند) */
+          <AdminPanel
+            currentCity={currentCity}
+            requests={requests}
+            drivers={drivers}
+            users={usersList}
+            scheduledLotteries={scheduledLotteries}
+            liveEventLottery={liveEventLottery}
+            winnersList={winnersList}
+            charityProjects={charityProjects}
+            heroSlides={heroSlides}
+            onUpdateDrivers={(newDrivers) => {
+              setDrivers(newDrivers);
+              localStorage.setItem('pakino_drivers', JSON.stringify(newDrivers));
+            }}
+            onUpdateUsers={(newUsers) => {
+              setUsersList(newUsers);
+              localStorage.setItem('pakino_users_list', JSON.stringify(newUsers));
+            }}
+            onUpdateScheduledLotteries={(newLotteries) => {
+              setScheduledLotteries(newLotteries);
+              localStorage.setItem('pakino_scheduled_lotteries', JSON.stringify(newLotteries));
+            }}
+            onUpdateLiveEventLottery={(newEvent) => {
+              setLiveEventLottery(newEvent);
+              localStorage.setItem('pakino_live_event_lottery', JSON.stringify(newEvent));
+            }}
+            onUpdateWinnersList={(newWinners) => {
+              setWinnersList(newWinners);
+              localStorage.setItem('pakino_winners_list', JSON.stringify(newWinners));
+            }}
+            onUpdateCharityProjects={(newProjects) => {
+              setCharityProjects(newProjects);
+              localStorage.setItem('pakino_charity_projects', JSON.stringify(newProjects));
+            }}
+            onUpdateHeroSlides={(newSlides) => {
+              setHeroSlides(newSlides);
+              localStorage.setItem('pakino_hero_slides', JSON.stringify(newSlides));
+            }}
+            wasteCategories={wasteCategories}
+            onUpdateWasteCategories={(newCats) => {
+              setWasteCategories(newCats);
+              localStorage.setItem('pakino_waste_categories', JSON.stringify(newCats));
+            }}
+            onAnnounceResetTickets={handleAnnounceResetTickets}
+          />
+        ) : userRole === 'driver' ? (
           /* Driver View (راننده پاکیار) */
           <DriverPanel
             currentCity={currentCity}
             requests={requests}
+            drivers={drivers}
             onAcceptRequest={handleDriverAccept}
             onAcceptBatchRequests={handleDriverBatchAccept}
             onCompletePickup={handleDriverComplete}
+            onFlagIssue={handleDriverFlagIssue}
           />
         ) : (
           /* Citizen View (شهروند) */
@@ -561,14 +847,21 @@ export default function App() {
             {activeCitizenTab === 'home' && (
               <CitizenHome
                 currentCity={currentCity}
+                onSelectCity={handleCityChange}
                 user={user}
                 requests={requests}
+                charityProjects={charityProjects}
+                heroSlides={heroSlides}
+                wasteCategories={wasteCategories}
                 onOpenNewPickup={() => setIsNewPickupOpen(true)}
                 onOpenHistory={() => setActiveCitizenTab('history')}
                 onOpenFeedback={() => setIsFeedbackOpen(true)}
                 onOpenShare={() => setIsShareOpen(true)}
                 onOpenLottery={() => setActiveCitizenTab('lottery')}
                 onOpenWallet={() => setIsWalletOpen(true)}
+                onSelectCharityProject={(projectId) => {
+                  setIsNewPickupOpen(true);
+                }}
               />
             )}
 
@@ -577,6 +870,7 @@ export default function App() {
                 requests={requests}
                 onOpenNewPickup={() => setIsNewPickupOpen(true)}
                 onCancelRequest={handleCancelRequest}
+                onOpenRatingModal={(req) => setRatingModalRequest(req)}
                 currentCity={currentCity}
               />
             )}
@@ -587,13 +881,32 @@ export default function App() {
                 user={user}
                 requests={requests}
                 onOpenNewPickup={() => setIsNewPickupOpen(true)}
+                scheduledLottery={scheduledLotteries.find((l) => l.status === 'active') || scheduledLotteries[0]}
+                liveEventLottery={liveEventLottery}
+                winnersList={winnersList}
+                ticketResetAnnouncement={ticketResetAnnouncement}
+                onRegisterEventCode={(code) => {
+                  const phone = user.phone || '09171234567';
+                  const exists = (liveEventLottery.registeredPhoneNumbers || []).includes(phone);
+                  const updatedNumbers = exists
+                    ? (liveEventLottery.registeredPhoneNumbers || [])
+                    : [...(liveEventLottery.registeredPhoneNumbers || []), phone];
+                  const updated: LiveEventLottery = {
+                    ...liveEventLottery,
+                    participantsCount: Math.max(updatedNumbers.length, (liveEventLottery.participantsCount || 0) + (exists ? 0 : 1)),
+                    registeredPhoneNumbers: updatedNumbers
+                  };
+                  setLiveEventLottery(updated);
+                  localStorage.setItem('pakino_live_event_lottery', JSON.stringify(updated));
+                  return true;
+                }}
               />
             )}
           </div>
         )}
       </main>
 
-      {/* Mobile Iranian Style Bottom Navigation Bar */}
+      {/* Mobile Bottom Navigation Bar */}
       {userRole === 'citizen' && (
         <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 py-1.5 px-3 shadow-lg">
           <div className="flex items-center justify-around max-w-md mx-auto">
@@ -654,7 +967,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Floating Action Button on Desktop (when on history or lottery view) */}
+      {/* Floating Action Button on Desktop */}
       {userRole === 'citizen' && activeCitizenTab !== 'home' && (
         <button
           onClick={() => setIsNewPickupOpen(true)}
@@ -672,6 +985,8 @@ export default function App() {
         currentCity={currentCity}
         user={user}
         existingRequests={requests}
+        charityProjects={charityProjects}
+        wasteCategories={wasteCategories}
         onRequestCreated={handleCreateRequest}
         onOpenHistory={() => {
           setActiveCitizenTab('history');
@@ -693,6 +1008,12 @@ export default function App() {
         onClose={() => setIsAuthOpen(false)}
         onLoginSuccess={handleLoginSuccess}
         currentCity={currentCity}
+        usersList={usersList}
+        onRegisterUser={(newUser) => {
+          const updated = [newUser, ...usersList];
+          setUsersList(updated);
+          localStorage.setItem('pakino_users_list', JSON.stringify(updated));
+        }}
       />
 
       <FeedbackModal
@@ -708,6 +1029,13 @@ export default function App() {
         onClose={() => setIsShareOpen(false)}
         currentCity={currentCity}
         user={user}
+      />
+
+      <DriverRatingModal
+        isOpen={!!ratingModalRequest}
+        onClose={() => setRatingModalRequest(null)}
+        request={ratingModalRequest}
+        onSubmitFeedback={handleSubmitDriverRating}
       />
     </div>
   );

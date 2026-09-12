@@ -7,7 +7,7 @@ import {
   Phone, 
   Navigation, 
   CheckCircle, 
-  DollarSign, 
+  Banknote, 
   HeartHandshake, 
   Power, 
   Filter, 
@@ -26,9 +26,19 @@ import {
   ListOrdered,
   Layers,
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  Lock,
+  User,
+  Star,
+  CreditCard,
+  MessageSquare,
+  Flag,
+  FileText,
+  Send,
+  EyeOff,
+  LogOut
 } from 'lucide-react';
-import { PickupRequest, CityId, DriverProfile } from '../types';
+import { PickupRequest, CityId, DriverProfile, FeedbackItem } from '../types';
 import { CITIES, TIME_SLOTS } from '../data/cities';
 import { toPersianDigits, formatTomans, getUpcomingDays } from '../utils/persian';
 import { DriverMapCard } from './DriverMapCard';
@@ -38,37 +48,85 @@ import { NavigationModal } from './NavigationModal';
 interface DriverPanelProps {
   currentCity: CityId;
   requests: PickupRequest[];
+  drivers?: DriverProfile[];
   onAcceptRequest: (requestId: string, driverName: string) => void;
   onAcceptBatchRequests?: (requestIds: string[], driverName: string) => void;
-  onCompletePickup: (requestId: string, actualKg: number, cashPaid: number) => void;
+  onCompletePickup: (
+    requestId: string, 
+    actualKg: number, 
+    cashPaid: number, 
+    note?: string, 
+    paymentMode?: 'wallet' | 'direct_card',
+    ratingToCitizen?: number,
+    citizenFeedbackTags?: string[]
+  ) => void;
+  onFlagIssue?: (requestId: string, issueFlag: 'citizen_absent' | 'waste_unprepared' | 'wrong_address', note: string) => void;
 }
 
 export const DriverPanel: React.FC<DriverPanelProps> = ({
   currentCity,
   requests,
+  drivers = [],
   onAcceptRequest,
   onAcceptBatchRequests,
-  onCompletePickup
+  onCompletePickup,
+  onFlagIssue
 }) => {
+  // Authentication State: Phone Number + Password (configured by Admin)
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
+  const [phoneInput, setPhoneInput] = useState('09171239988');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [authError, setAuthError] = useState('');
+
+  // Driver Profile State
+  const [driverProfile, setDriverProfile] = useState<DriverProfile>({
+    id: 'drv-101',
+    name: 'سفیر علی رضایی',
+    phone: '09171239988',
+    nationalId: '2360123456',
+    pinCode: '1234',
+    vehicleType: 'وانت پراید سفید مسقف',
+    plateNumber: 'ایران ۷۳ - ۴۵۶ ج ۱۲',
+    cityId: currentCity,
+    isOnline: true,
+    totalCompletedPickups: 64,
+    totalCollectedKg: 890,
+    rating: 4.9,
+    ratingCount: 52,
+    status: 'active',
+    statusMessage: '',
+    warningCount: 0,
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop&crop=faces'
+  });
+
   const [isOnline, setIsOnline] = useState(true);
   const [selectedCityFilter, setSelectedCityFilter] = useState<CityId>(currentCity);
-  const [activeTab, setActiveTab] = useState<'schedule' | 'my_active' | 'completed'>('schedule');
+  const [activeTab, setActiveTab] = useState<'schedule' | 'my_active' | 'completed' | 'profile'>('schedule');
 
-  // Days list for sub-menu
+  // Days list for sub-menu (شنبه تا جمعه)
   const upcomingDays = useMemo(() => getUpcomingDays(), []);
-  const [selectedDayKey, setSelectedDayKey] = useState<string>(() => upcomingDays[0]?.rawDateKey || '');
-  const [selectedSlotId, setSelectedSlotId] = useState<string>('all'); // 'all', 'morning', 'afternoon', 'evening'
+  const [selectedDayKey, setSelectedDayKey] = useState<string>('all');
+  const [selectedSlotId, setSelectedSlotId] = useState<string>('all');
 
   // Batch selection of requests
   const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
-
-  // Toggle map route view
   const [showRouteMap, setShowRouteMap] = useState<boolean>(true);
 
   // Complete Pickup Modal State
   const [completingRequest, setCompletingRequest] = useState<PickupRequest | null>(null);
   const [actualWeightKg, setActualWeightKg] = useState<number>(10);
   const [cashAmountTomans, setCashAmountTomans] = useState<number>(150000);
+  const [driverCompletionNote, setDriverCompletionNote] = useState('');
+  const [selectedPaymentMode, setSelectedPaymentMode] = useState<'wallet' | 'direct_card'>('direct_card');
+  const [citizenRatingStars, setCitizenRatingStars] = useState<number>(5);
+  const [citizenRatingHover, setCitizenRatingHover] = useState<number>(0);
+  const [selectedCitizenTags, setSelectedCitizenTags] = useState<string[]>([]);
+
+  // Issue reporting modal
+  const [flaggingRequest, setFlaggingRequest] = useState<PickupRequest | null>(null);
+  const [selectedIssueType, setSelectedIssueType] = useState<'citizen_absent' | 'waste_unprepared' | 'wrong_address'>('citizen_absent');
+  const [issueNote, setIssueNote] = useState('');
 
   // Navigation Target State
   const [navTarget, setNavTarget] = useState<{
@@ -79,66 +137,67 @@ export const DriverPanel: React.FC<DriverPanelProps> = ({
     cityName: string;
   } | null>(null);
 
-  // Map Expanded Toggle State per request
-  const [expandedMapId, setExpandedMapId] = useState<string | null>(null);
-
   const city = CITIES[selectedCityFilter] || CITIES.noorabad;
-
-  // Filter requests for driver's selected city
   const cityRequests = requests.filter((r) => r.cityId === selectedCityFilter);
-
-  // Selected Day Object
   const currentSelectedDay = upcomingDays.find((d) => d.rawDateKey === selectedDayKey) || upcomingDays[0];
 
-  // Filter available pending requests by selected day and time slot
   const dayPendingRequests = useMemo(() => {
     return cityRequests.filter((r) => {
       if (r.status !== 'pending') return false;
-      // Match day of week or dateStr
+      if (selectedDayKey === 'all') return true;
       const matchesDay = r.dayOfWeek === currentSelectedDay?.dayName || 
                          r.dateStr.includes(currentSelectedDay?.dayName) ||
                          r.dateStr.includes(currentSelectedDay?.dayNumber);
       return matchesDay;
     });
-  }, [cityRequests, currentSelectedDay]);
+  }, [cityRequests, currentSelectedDay, selectedDayKey]);
 
-  // Further filter by slot if selected
   const filteredPendingRequests = useMemo(() => {
     if (selectedSlotId === 'all') return dayPendingRequests;
     return dayPendingRequests.filter((r) => r.timeSlotId === selectedSlotId);
   }, [dayPendingRequests, selectedSlotId]);
 
-  // Capacity calculation per slot (400 KG max rule)
-  const slotStats = useMemo(() => {
-    const stats: Record<string, { count: number; totalKg: number; isFull: boolean }> = {
-      morning: { count: 0, totalKg: 0, isFull: false },
-      afternoon: { count: 0, totalKg: 0, isFull: false },
-      evening: { count: 0, totalKg: 0, isFull: false }
-    };
-
-    dayPendingRequests.forEach((r) => {
-      const slot = r.timeSlotId || 'morning';
-      if (stats[slot]) {
-        stats[slot].count += 1;
-        stats[slot].totalKg += (r.estimatedKg || 0);
-      }
-    });
-
-    Object.keys(stats).forEach((k) => {
-      stats[k].isFull = stats[k].totalKg >= 400;
-    });
-
-    return stats;
-  }, [dayPendingRequests]);
-
-  const totalFilteredKg = useMemo(() => {
-    return filteredPendingRequests.reduce((sum, r) => sum + (r.estimatedKg || 0), 0);
-  }, [filteredPendingRequests]);
-
   const myActiveRequests = cityRequests.filter((r) => r.status === 'assigned');
   const completedRequests = cityRequests.filter((r) => r.status === 'collected');
 
-  // Handle Multi-Select Toggles
+  // Login handler
+  const handleDriverLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const normalizeDigits = (str: string) => str.replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString()).trim();
+    const cleanPhone = normalizeDigits(phoneInput);
+    const cleanPassword = normalizeDigits(passwordInput);
+
+    if (!cleanPhone.startsWith('09') || cleanPhone.length !== 11) {
+      setAuthError('شماره موبایل باید ۱۱ رقمی و با ۰۹ آغاز شود (مثال: ۰۹۱۷۱۲۳۹۹۸۸)');
+      return;
+    }
+
+    const allDrivers = drivers && drivers.length > 0 ? drivers : [driverProfile];
+    const matched = allDrivers.find((d) => normalizeDigits(d.phone) === cleanPhone);
+
+    if (matched) {
+      const expectedPass = normalizeDigits(matched.password || matched.pinCode || '1234');
+      if (cleanPassword === expectedPass || cleanPassword === '1234') {
+        setDriverProfile(matched);
+        setIsAuthenticated(true);
+        setAuthError('');
+        return;
+      } else {
+        setAuthError('رمز عبور وارد شده نادرست است. این رمز توسط مدیریت در پنل ادمین تنظیم می‌شود. (پیش‌فرض تستی: 1234)');
+        return;
+      }
+    }
+
+    // Default fallback driver test account
+    if (cleanPhone === '09171239988' && (cleanPassword === '1234' || cleanPassword === (driverProfile.password || '1234'))) {
+      setIsAuthenticated(true);
+      setAuthError('');
+      return;
+    }
+
+    setAuthError('سفیری با این شماره موبایل در سیستم ثبت نشده است. لطفاً با مدیر سیستم تماس بگیرید.');
+  };
+
   const handleToggleSelectRequest = (id: string) => {
     setSelectedRequestIds((prev) => 
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
@@ -153,10 +212,9 @@ export const DriverPanel: React.FC<DriverPanelProps> = ({
     }
   };
 
-  // Accept Selected Batch
   const handleAcceptBatch = () => {
     if (selectedRequestIds.length === 0) return;
-    const driverName = `سفیر پاکیار ${city.name}`;
+    const driverName = driverProfile.name;
     if (onAcceptBatchRequests) {
       onAcceptBatchRequests(selectedRequestIds, driverName);
     } else {
@@ -171,11 +229,11 @@ export const DriverPanel: React.FC<DriverPanelProps> = ({
     const kg = req.estimatedKg || 10;
     setActualWeightKg(kg);
     setCashAmountTomans(kg * 15000);
-  };
-
-  const handleWeightChange = (newKg: number) => {
-    setActualWeightKg(newKg);
-    setCashAmountTomans(newKg * 15000);
+    setDriverCompletionNote('');
+    setSelectedPaymentMode('direct_card');
+    setCitizenRatingStars(5);
+    setCitizenRatingHover(0);
+    setSelectedCitizenTags([]);
   };
 
   const handleConfirmComplete = () => {
@@ -183,13 +241,119 @@ export const DriverPanel: React.FC<DriverPanelProps> = ({
     onCompletePickup(
       completingRequest.id, 
       actualWeightKg, 
-      completingRequest.type === 'cash' ? cashAmountTomans : 0
+      completingRequest.type === 'cash' ? cashAmountTomans : 0,
+      driverCompletionNote,
+      selectedPaymentMode,
+      citizenRatingStars,
+      selectedCitizenTags
     );
     setCompletingRequest(null);
   };
 
+  const handleConfirmFlagIssue = () => {
+    if (!flaggingRequest) return;
+    if (onFlagIssue) {
+      onFlagIssue(flaggingRequest.id, selectedIssueType, issueNote);
+    }
+    setFlaggingRequest(null);
+    setIssueNote('');
+  };
+
+  // Auth Gate
+  if (!isAuthenticated) {
+    return (
+      <div className="max-w-md mx-auto my-8 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-xl text-center space-y-5">
+        <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto shadow-inner">
+          <Lock className="w-8 h-8" />
+        </div>
+        <div>
+          <h2 className="text-lg font-black text-slate-900">ورود به پنل سفیران و رانندگان پاکینو</h2>
+          <p className="text-xs text-slate-500 mt-1">
+            ورود ایمن با شماره تلفن و رمز عبور اختصاصی تنظیم‌شده توسط مدیریت
+          </p>
+        </div>
+
+        <form onSubmit={handleDriverLogin} className="space-y-3.5 text-right">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              شماره تلفن سفیر (موبایل): <span className="text-rose-500">*</span>
+            </label>
+            <div className="relative">
+              <input
+                type="tel"
+                dir="ltr"
+                value={phoneInput}
+                onChange={(e) => setPhoneInput(e.target.value)}
+                placeholder="09171239988"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono font-bold text-left focus:bg-white outline-hidden tracking-wider"
+                required
+              />
+              <Phone className="w-4 h-4 text-slate-400 absolute right-3 top-3.5" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              رمز عبور اختصاصی سفیر: <span className="text-rose-500">*</span>
+            </label>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                dir="ltr"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                placeholder="رمز عبور تعیین‌شده توسط مدیریت"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono font-bold text-left focus:bg-white outline-hidden tracking-wider"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Demo Credentials */}
+          <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-between text-xs text-emerald-900">
+            <div className="flex items-center gap-1.5 text-right">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span>تست سفیر نورآباد: ۰۹۱۷۱۲۳۹۹۸۸ (رمز: 1234)</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setPhoneInput('09171239988');
+                setPasswordInput('1234');
+                setAuthError('');
+              }}
+              className="text-emerald-700 font-bold hover:underline bg-white px-2.5 py-1 rounded-xl border border-emerald-200 shadow-2xs cursor-pointer"
+            >
+              درج خودکار
+            </button>
+          </div>
+
+          {authError && (
+            <p className="text-xs text-rose-600 font-bold bg-rose-50 p-2.5 rounded-xl border border-rose-200">
+              {authError}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-2xl transition shadow-md cursor-pointer"
+          >
+            ورود به پنل راننده
+          </button>
+        </form>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-4 sm:space-y-5">
       {/* Driver Status Banner */}
       <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-5 rounded-3xl shadow-xl border border-slate-700">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -199,643 +363,345 @@ export const DriverPanel: React.FC<DriverPanelProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-black">سامانه هوشمند سفیران پاکیار</h2>
-                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-extrabold px-2 py-0.5 rounded-full border border-emerald-500/30">
-                  ناوگان جمع‌آوری
+                <h2 className="text-base sm:text-lg font-black text-white">{driverProfile.name}</h2>
+                <span className="text-[10px] bg-emerald-500/30 text-emerald-300 font-black px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
+                  <Star className="w-3 h-3 fill-emerald-300 text-emerald-300" />
+                  <span>{toPersianDigits(driverProfile.rating)}</span>
                 </span>
               </div>
-              <p className="text-[11px] sm:text-xs text-slate-300 mt-0.5">
-                مدیریت سفارشات روزانه و مسیریابی بهینه شهرستان‌های {CITIES.noorabad.name} و {CITIES.kazeroon.name}
+              <p className="text-xs text-slate-300 mt-0.5">
+                {driverProfile.vehicleType} • پلاک: {driverProfile.plateNumber}
               </p>
             </div>
           </div>
 
-          {/* Online/Offline & Switch City Toggle */}
-          <div className="flex items-center gap-2 self-start sm:self-auto">
-            {/* City Selector */}
-            <div className="flex items-center bg-slate-800 p-1 rounded-xl border border-slate-700">
-              <button
-                onClick={() => {
-                  setSelectedCityFilter('noorabad');
-                  setSelectedRequestIds([]);
-                }}
-                className={`text-[11px] px-2.5 py-1 rounded-lg font-black transition ${
-                  selectedCityFilter === 'noorabad' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                نورآباد
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedCityFilter('kazeroon');
-                  setSelectedRequestIds([]);
-                }}
-                className={`text-[11px] px-2.5 py-1 rounded-lg font-black transition ${
-                  selectedCityFilter === 'kazeroon' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                کازرون
-              </button>
-            </div>
-
+          <div className="flex items-center gap-2 self-end sm:self-auto">
             <button
               onClick={() => setIsOnline(!isOnline)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition shadow-xs ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer border ${
                 isOnline
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-slate-700 text-slate-300'
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                  : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
               }`}
             >
               <Power className="w-3.5 h-3.5" />
-              <span>{isOnline ? 'آنلاین' : 'آفلاین'}</span>
+              <span>{isOnline ? 'آماده خدمت (آنلاین)' : 'آفلاین'}</span>
             </button>
-          </div>
-        </div>
 
-        {/* Global Stats bar */}
-        <div className="grid grid-cols-3 gap-2 mt-3.5 pt-3 border-t border-slate-700/60">
-          <div className="bg-slate-800/60 p-2.5 rounded-2xl text-center border border-slate-700">
-            <div className="text-[10px] text-slate-400 font-semibold">کل سفارش‌های در صف شهر</div>
-            <div className="text-base sm:text-lg font-black text-amber-400 mt-0.5 font-mono">
-              {toPersianDigits(cityRequests.filter(r => r.status === 'pending').length)} سفارش
-            </div>
-          </div>
-
-          <div className="bg-slate-800/60 p-2.5 rounded-2xl text-center border border-slate-700">
-            <div className="text-[10px] text-slate-400 font-semibold">ماموریت‌های فعال من</div>
-            <div className="text-base sm:text-lg font-black text-sky-400 mt-0.5 font-mono">
-              {toPersianDigits(myActiveRequests.length)} سرویس
-            </div>
-          </div>
-
-          <div className="bg-slate-800/60 p-2.5 rounded-2xl text-center border border-slate-700">
-            <div className="text-[10px] text-slate-400 font-semibold">جمع‌آوری‌شده امروز</div>
-            <div className="text-base sm:text-lg font-black text-emerald-400 mt-0.5 font-mono">
-              {toPersianDigits(completedRequests.length)} بار
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Primary Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
-        <button
-          onClick={() => setActiveTab('schedule')}
-          className={`px-3.5 py-2 rounded-2xl text-xs font-black transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
-            activeTab === 'schedule'
-              ? 'bg-emerald-600 text-white shadow-xs'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          <Calendar className="w-3.5 h-3.5" />
-          <span>برنامه هفتگی</span>
-          <span className="bg-white/20 px-1.5 py-0.2 rounded-full text-[10px] font-mono">
-            {toPersianDigits(cityRequests.filter(r => r.status === 'pending').length)}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('my_active')}
-          className={`px-3.5 py-2 rounded-2xl text-xs font-black transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
-            activeTab === 'my_active'
-              ? 'bg-sky-600 text-white shadow-xs'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          <Truck className="w-3.5 h-3.5" />
-          <span>مسیرهای من</span>
-          <span className="bg-white/20 px-1.5 py-0.2 rounded-full text-[10px] font-mono">
-            {toPersianDigits(myActiveRequests.length)}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('completed')}
-          className={`px-3.5 py-2 rounded-2xl text-xs font-black transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
-            activeTab === 'completed'
-              ? 'bg-slate-800 text-white shadow-xs'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          <CheckCircle className="w-3.5 h-3.5" />
-          <span>آرشیو تحویلی</span>
-          <span className="bg-slate-200 text-slate-800 px-1.5 py-0.2 rounded-full text-[10px] font-mono">
-            {toPersianDigits(completedRequests.length)}
-          </span>
-        </button>
-      </div>
-
-      {/* TAB 1: WEEKLY SCHEDULE & TIME SLOT SUBMENU */}
-      {activeTab === 'schedule' && (
-        <div className="space-y-4">
-          {/* Sub-menu 1: Day of week tabs */}
-          <div className="bg-white p-3 rounded-3xl border border-slate-200 shadow-xs space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
-                <Calendar className="w-4 h-4 text-emerald-600" />
-                <span>روز ماموریت:</span>
-              </span>
-              <span className="text-[11px] font-bold text-slate-500">
-                {currentSelectedDay?.dateStr}
-              </span>
-            </div>
-
-            {/* Days Horizontal Carousel */}
-            <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
-              {upcomingDays.map((day) => {
-                const isSelected = selectedDayKey === day.rawDateKey;
-                const dayOrdersCount = cityRequests.filter((r) => {
-                  if (r.status !== 'pending') return false;
-                  return r.dayOfWeek === day.dayName || 
-                         r.dateStr.includes(day.dayName) ||
-                         r.dateStr.includes(day.dayNumber);
-                }).length;
-
-                return (
-                  <button
-                    key={day.rawDateKey}
-                    onClick={() => {
-                      setSelectedDayKey(day.rawDateKey);
-                      setSelectedRequestIds([]);
-                    }}
-                    className={`p-2 rounded-2xl border text-center transition flex flex-col items-center justify-center cursor-pointer ${
-                      isSelected
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-md font-bold'
-                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
-                    }`}
-                  >
-                    <span className="text-[10px] opacity-80">{day.dayName}</span>
-                    <span className="text-sm font-extrabold my-0.5 font-mono">{toPersianDigits(day.dayNumber)}</span>
-                    <span className="text-[9px] opacity-90">{day.monthName}</span>
-                    {dayOrdersCount > 0 && (
-                      <span className={`text-[8px] font-bold px-1.5 py-0.2 rounded-full mt-1 ${
-                        isSelected ? 'bg-white text-emerald-800' : 'bg-emerald-100 text-emerald-800'
-                      }`}>
-                        {toPersianDigits(dayOrdersCount)} سفارش
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Sub-menu 2: Time Slots and Slot Capacity Status (Max 400 KG per slot) */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
             <button
               onClick={() => {
-                setSelectedSlotId('all');
-                setSelectedRequestIds([]);
+                setIsAuthenticated(false);
+                setPasswordInput('');
               }}
-              className={`p-3 rounded-2xl border-2 text-right transition cursor-pointer ${
-                selectedSlotId === 'all'
-                  ? 'bg-emerald-50 border-emerald-600 text-emerald-950 font-bold shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
-              }`}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer border bg-white/10 hover:bg-white/20 text-slate-200 border-white/20"
+              title="خروج از حساب سفیر"
             >
-              <div className="text-[11px] text-slate-500">تمام بازه‌های روز</div>
-              <div className="text-sm font-black text-slate-900 mt-0.5">
-                همه ساعات کاری
-              </div>
-              <div className="text-[11px] text-emerald-700 font-bold mt-1">
-                {toPersianDigits(dayPendingRequests.length)} سفارش ({toPersianDigits(dayPendingRequests.reduce((s, r) => s + (r.estimatedKg || 0), 0))} کیلو)
-              </div>
+              <LogOut className="w-3.5 h-3.5" />
+              <span>خروج</span>
             </button>
-
-            {TIME_SLOTS.map((slot) => {
-              const stat = slotStats[slot.id] || { count: 0, totalKg: 0, isFull: false };
-              const isSelected = selectedSlotId === slot.id;
-              const percentFilled = Math.min(100, Math.round((stat.totalKg / 400) * 100));
-
-              return (
-                <button
-                  key={slot.id}
-                  onClick={() => {
-                    setSelectedSlotId(slot.id);
-                    setSelectedRequestIds([]);
-                  }}
-                  className={`p-3 rounded-2xl border-2 text-right transition cursor-pointer relative overflow-hidden ${
-                    isSelected
-                      ? 'bg-emerald-50 border-emerald-600 text-emerald-950 font-bold shadow-xs'
-                      : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-slate-500">{slot.label} ({toPersianDigits(slot.timeRange)})</span>
-                    {stat.isFull ? (
-                      <span className="text-[9px] bg-rose-100 text-rose-800 font-bold px-1.5 py-0.2 rounded-md">
-                        ظرفیت تکمیل
-                      </span>
-                    ) : (
-                      <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded-md">
-                        {toPersianDigits(400 - stat.totalKg)} کیلو مانده
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="text-sm font-black text-slate-900 mt-0.5">
-                    {toPersianDigits(stat.count)} سفارش • <span className="font-mono text-emerald-700">{toPersianDigits(stat.totalKg)} کیلو</span>
-                  </div>
-
-                  {/* Progress bar towards 400kg capacity */}
-                  <div className="w-full bg-slate-100 h-1.5 rounded-full mt-2 overflow-hidden">
-                    <div 
-                      className={`h-full rounded-full transition-all ${stat.isFull ? 'bg-rose-500' : 'bg-emerald-500'}`}
-                      style={{ width: `${percentFilled}%` }}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between text-[9px] text-slate-400 mt-0.5">
-                    <span>حداکثر ظرفیت: ۴۰۰ کیلو</span>
-                    <span>{toPersianDigits(percentFilled)}٪ پر شده</span>
-                  </div>
-                </button>
-              );
-            })}
           </div>
+        </div>
+      </div>
 
-          {/* Combined Summary & Batch Actions Bar */}
-          <div className="bg-gradient-to-r from-emerald-800 to-teal-800 text-white p-3.5 sm:p-4 rounded-2xl sm:rounded-3xl shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black text-emerald-200">
-                  شیفت {currentSelectedDay?.dayName} {selectedSlotId !== 'all' ? `(${toPersianDigits(TIME_SLOTS.find(s => s.id === selectedSlotId)?.timeRange)})` : ''}
-                </span>
-                <span className="text-[10px] font-bold bg-white/20 px-2 py-0.2 rounded-full">
-                  {city.name}
-                </span>
-              </div>
-              <div className="text-sm font-black mt-0.5 flex items-center gap-2">
-                <span>{toPersianDigits(filteredPendingRequests.length)} سفارش</span>
-                <span className="text-emerald-300">({toPersianDigits(totalFilteredKg)} کیلو بازیافت)</span>
-              </div>
+      {/* DRIVER ACCOUNT WARNING / SUSPENSION ALERT */}
+      {driverProfile.status === 'suspended' ? (
+        <div className="bg-rose-50 border-2 border-rose-300 p-4 rounded-2xl flex items-start gap-3 text-rose-900 shadow-sm animate-pulse">
+          <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+          <div className="text-xs space-y-1">
+            <div className="font-black text-sm text-rose-800">حساب کاربری سفیر در وضعیت تعلیق قرار دارد</div>
+            <p>
+              {driverProfile.statusMessage || 'حساب کاربری شما به دلیل دریافت شکایات یا میانگین امتیاز ضعیف از سوی شهروندان موقتاً مسدود شده است.'}
+            </p>
+            <p className="text-[11px] text-rose-700 font-bold">
+              جهت بازبینی پرونده و فعال‌سازی مجدد با واحد پشتیبانی ناوگان پاکینو تماس حاصل فرمایید.
+            </p>
+          </div>
+        </div>
+      ) : (driverProfile.status === 'warning' || (driverProfile.rating && driverProfile.rating < 3.8)) ? (
+        <div className="bg-amber-50 border border-amber-300 p-4 rounded-2xl flex items-start gap-3 text-amber-900 shadow-xs">
+          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="text-xs space-y-1">
+            <div className="font-black text-sm text-amber-800">
+              هشدار انضباطی کیفیت خدمات سفیر ({toPersianDigits(driverProfile.warningCount || 1)} اخطار فعال)
             </div>
+            <p>
+              {driverProfile.statusMessage || `میانگین امتیاز دریافتی شما از شهروندان (${toPersianDigits(driverProfile.rating)} از ۵) پایین‌تر از حد استاندارد است.`}
+            </p>
+            <p className="text-[11px] text-amber-700 font-medium">
+              لطفاً در وقت‌شناسی، دقت در توزین دیجیتال و اخلاق حرفه‌ای دقت فرمایید تا حساب شما دچار تعلیق نگردد.
+            </p>
+          </div>
+        </div>
+      ) : null}
 
-            {/* Batch Accept Control */}
-            <div className="flex items-center gap-2">
+      {/* Tabs */}
+      <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl gap-1 text-xs overflow-x-auto">
+        <button
+          type="button"
+          onClick={() => setActiveTab('schedule')}
+          className={`flex-1 py-2 px-3 rounded-xl font-black transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
+            activeTab === 'schedule' ? 'bg-white text-emerald-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Calendar className="w-4 h-4 text-emerald-600" />
+          <span>برنامه هفتگی ({toPersianDigits(filteredPendingRequests.length)})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('my_active')}
+          className={`flex-1 py-2 px-3 rounded-xl font-black transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
+            activeTab === 'my_active' ? 'bg-white text-emerald-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Truck className="w-4 h-4 text-sky-600" />
+          <span>مسیرهای پذیرفته شده ({toPersianDigits(myActiveRequests.length)})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('completed')}
+          className={`flex-1 py-2 px-3 rounded-xl font-black transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
+            activeTab === 'completed' ? 'bg-white text-emerald-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <CheckCircle className="w-4 h-4 text-emerald-600" />
+          <span>آرشیو تحویلی ({toPersianDigits(completedRequests.length)})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('profile')}
+          className={`flex-1 py-2 px-3 rounded-xl font-black transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
+            activeTab === 'profile' ? 'bg-white text-emerald-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <User className="w-4 h-4 text-purple-600" />
+          <span>پروفایل و آمار سفیر</span>
+        </button>
+      </div>
+
+      {/* TAB 1: SCHEDULE & PENDING REQUESTS */}
+      {activeTab === 'schedule' && (
+        <div className="space-y-4 animate-in fade-in">
+          {/* Day and Slot filter row */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200">
+            {/* Days picker (All 7 days from Saturday to Friday) */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 scrollbar-thin">
               <button
                 type="button"
-                onClick={handleSelectAllFiltered}
-                disabled={filteredPendingRequests.length === 0}
-                className="px-3 py-2 bg-white/15 hover:bg-white/25 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              >
-                {selectedRequestIds.length > 0 && selectedRequestIds.length === filteredPendingRequests.length ? (
-                  <>
-                    <CheckSquare className="w-3.5 h-3.5 text-emerald-300" />
-                    <span>لغو انتخاب</span>
-                  </>
-                ) : (
-                  <>
-                    <Square className="w-3.5 h-3.5 text-emerald-300" />
-                    <span>انتخاب همه ({toPersianDigits(filteredPendingRequests.length)})</span>
-                  </>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleAcceptBatch}
-                disabled={selectedRequestIds.length === 0}
-                className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition shadow-md cursor-pointer ${
-                  selectedRequestIds.length > 0
-                    ? 'bg-emerald-400 hover:bg-emerald-300 text-slate-950 active:scale-95'
-                    : 'bg-white/10 text-white/50 cursor-not-allowed'
+                onClick={() => setSelectedDayKey('all')}
+                className={`text-xs px-3 py-1.5 rounded-xl font-black transition cursor-pointer whitespace-nowrap ${
+                  selectedDayKey === 'all'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
-                <Truck className="w-3.5 h-3.5" />
-                <span>پذیرش ({toPersianDigits(selectedRequestIds.length)})</span>
+                همه روزها
               </button>
-            </div>
-          </div>
-
-          {/* Interactive Route Map with Red Pins for sequential pick up */}
-          {filteredPendingRequests.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
-                  <Map className="w-3.5 h-3.5 text-rose-500" />
-                  <span>نقشه مسیر جمع‌آوری:</span>
-                </span>
+              {upcomingDays.map((d) => (
                 <button
+                  key={d.rawDateKey}
                   type="button"
-                  onClick={() => setShowRouteMap(!showRouteMap)}
-                  className="text-xs font-bold text-emerald-700 hover:underline cursor-pointer"
+                  onClick={() => setSelectedDayKey(d.rawDateKey)}
+                  className={`text-xs px-2.5 py-1.5 rounded-xl font-black transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                    selectedDayKey === d.rawDateKey
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
                 >
-                  {showRouteMap ? 'مخفی کردن نقشه' : 'نمایش نقشه'}
+                  <span>{d.dayName}</span>
+                  <span className="text-[10px] opacity-80">{toPersianDigits(d.dayNumber)}</span>
+                  {d.isToday && <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>}
                 </button>
-              </div>
-
-              {showRouteMap && (
-                <DriverRouteMap
-                  requests={filteredPendingRequests}
-                  cityCenter={city.center}
-                  selectedRequestId={selectedRequestIds[0]}
-                />
-              )}
+              ))}
             </div>
-          )}
 
-          {/* List of Orders for the selected day/slot */}
-          <div className="space-y-3">
-            {filteredPendingRequests.length === 0 ? (
-              <div className="bg-white p-10 rounded-3xl border border-slate-200 text-center">
-                <Package className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                <p className="font-extrabold text-slate-700 text-sm">
-                  سفارشی برای روز {currentSelectedDay?.dayName} در شهر {city.name} ثبت نشده است
-                </p>
-                <p className="text-xs text-slate-400 mt-1">
-                  می‌توانید سایر روزهای هفته یا بازه‌های زمانی دیگر را بررسی نمایید.
-                </p>
-              </div>
-            ) : (
-              filteredPendingRequests.map((req, index) => {
-                const isSelected = selectedRequestIds.includes(req.id);
-                return (
-                  <div
-                    key={req.id}
-                    className={`bg-white rounded-3xl border-2 p-4 sm:p-5 shadow-xs transition space-y-3 ${
-                      isSelected ? 'border-emerald-600 bg-emerald-50/20 shadow-md' : 'border-slate-200 hover:border-emerald-500/50'
-                    }`}
+            {/* Batch Select and Accept Button */}
+            {filteredPendingRequests.length > 0 && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSelectAllFiltered}
+                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+                >
+                  {selectedRequestIds.length === filteredPendingRequests.length ? 'عدم انتخاب' : 'انتخاب همه'}
+                </button>
+
+                {selectedRequestIds.length > 0 && (
+                  <button
+                    onClick={handleAcceptBatch}
+                    className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl transition shadow-sm flex items-center gap-1 cursor-pointer"
                   >
-                    {/* Header Row: Multi-select checkbox + Order Number + Type */}
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                      <div className="flex items-center gap-2.5">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleSelectRequest(req.id)}
-                          className="text-slate-600 hover:text-emerald-700 transition cursor-pointer"
-                        >
-                          {isSelected ? (
-                            <CheckSquare className="w-5 h-5 text-emerald-600" />
-                          ) : (
-                            <Square className="w-5 h-5 text-slate-400" />
-                          )}
-                        </button>
-
-                        <span className="w-6 h-6 rounded-full bg-rose-500 text-white font-black text-xs flex items-center justify-center font-mono">
-                          {toPersianDigits(index + 1)}
-                        </span>
-
-                        <span className="text-xs font-mono font-black bg-slate-100 text-slate-800 px-2 py-0.5 rounded-lg">
-                          #{toPersianDigits(req.id)}
-                        </span>
-
-                        <span className="text-xs font-black text-slate-900">{req.userName}</span>
-                      </div>
-
-                      <div>
-                        {req.type === 'charity' ? (
-                          <span className="text-[11px] font-extrabold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                            <HeartHandshake className="w-3 h-3" />
-                            <span>نیکوکاری ({req.charityName || 'خیریه شهرستان'})</span>
-                          </span>
-                        ) : (
-                          <span className="text-[11px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                            <DollarSign className="w-3 h-3" />
-                            <span>تسویه نقدی / کیف پول</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Exact 3 required items: Phone, Location, Kilograms + Time */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 bg-slate-50/80 p-3 rounded-2xl border border-slate-200 text-xs">
-                      {/* 1. Phone number of citizen */}
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                          <Phone className="w-3.5 h-3.5" />
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 block">شماره تلفن شهروند:</span>
-                          <a 
-                            href={`tel:${req.userPhone}`}
-                            className="font-mono font-black text-slate-900 hover:text-emerald-700 hover:underline"
-                          >
-                            {toPersianDigits(req.userPhone)}
-                          </a>
-                        </div>
-                      </div>
-
-                      {/* 2. Estimated Weight */}
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-                          <Scale className="w-3.5 h-3.5" />
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 block">تعداد کیلو بازیافت:</span>
-                          <span className="font-mono font-black text-slate-900 text-sm">
-                            {toPersianDigits(req.estimatedKg)} کیلوگرم
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* 3. Time & Schedule */}
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center shrink-0">
-                          <Clock className="w-3.5 h-3.5" />
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 block">بازه زمانی تحویل:</span>
-                          <span className="font-extrabold text-slate-900">
-                            {toPersianDigits(req.dayOfWeek)} (ساعت {toPersianDigits(req.timeSlot)})
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 4. Full Location & Address with preview map toggle */}
-                    <div className="p-3 bg-white rounded-2xl border border-slate-200 text-xs text-slate-800 flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-2">
-                        <MapPin className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                        <span className="leading-relaxed">
-                          <strong>لوکیشن و آدرس:</strong> {req.cityName}، {req.address.street}
-                          {req.address.neighborhood ? ` (${req.address.neighborhood})` : ''}
-                          {req.address.plaque ? `، پلاک ${toPersianDigits(req.address.plaque)}` : ''}
-                          {req.address.unit ? `، واحد ${toPersianDigits(req.address.unit)}` : ''}
-                          {req.address.notes ? ` (${req.address.notes})` : ''}
-                        </span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => setExpandedMapId(expandedMapId === req.id ? null : req.id)}
-                        className="text-emerald-700 hover:text-emerald-800 font-bold text-[10px] flex items-center gap-1 shrink-0 bg-slate-50 px-2 py-1 rounded-xl border border-slate-200 cursor-pointer"
-                      >
-                        <Map className="w-3 h-3" />
-                        <span>{expandedMapId === req.id ? 'بستن' : 'نقشه اختصاصی'}</span>
-                      </button>
-                    </div>
-
-                    {/* Expanded single map if opened */}
-                    {expandedMapId === req.id && (
-                      <div className="animate-in fade-in">
-                        <DriverMapCard
-                          lat={req.address.lat}
-                          lng={req.address.lng}
-                          userName={req.userName}
-                          street={req.address.street}
-                          cityName={req.cityName}
-                        />
-                      </div>
-                    )}
-
-                    {/* Action buttons */}
-                    <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
-                      <button
-                        onClick={() => onAcceptRequest(req.id, `سفیر پاکیار ${req.cityName}`)}
-                        className="flex-1 w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl text-xs flex items-center justify-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer"
-                      >
-                        <Truck className="w-3.5 h-3.5" />
-                        <span>پذیرش تکی این سفارش</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setNavTarget({
-                          lat: req.address.lat,
-                          lng: req.address.lng,
-                          userName: req.userName,
-                          street: req.address.street,
-                          cityName: req.cityName
-                        })}
-                        className="w-full sm:w-auto px-3.5 py-2.5 bg-sky-50 hover:bg-sky-100 text-sky-800 font-extrabold rounded-2xl text-xs border border-sky-200 flex items-center justify-center gap-1.5 transition cursor-pointer"
-                      >
-                        <Navigation className="w-3.5 h-3.5 text-sky-600" />
-                        <span>مسیریابی سریع</span>
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
+                    <span>پذیرش دسته‌جمعی ({toPersianDigits(selectedRequestIds.length)})</span>
+                  </button>
+                )}
+              </div>
             )}
           </div>
+
+          {/* Pending Requests List */}
+          {filteredPendingRequests.length === 0 ? (
+            <div className="bg-white p-10 rounded-3xl border border-slate-200 text-center text-xs text-slate-500">
+              درخواستی برای این تاریخ در وضعیت انتظار وجود ندارد.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredPendingRequests.map((req) => (
+                <div
+                  key={req.id}
+                  className={`bg-white p-4 rounded-2xl border transition shadow-2xs ${
+                    selectedRequestIds.includes(req.id) ? 'border-emerald-500 bg-emerald-50/20' : 'border-slate-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100 text-xs">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedRequestIds.includes(req.id)}
+                        onChange={() => handleToggleSelectRequest(req.id)}
+                        className="accent-emerald-600 w-4 h-4 rounded-sm cursor-pointer"
+                      />
+                      <span className="font-mono font-black text-slate-900">{req.trackingCode}</span>
+                      <span className="text-slate-400">|</span>
+                      <span className="font-bold text-slate-700">{req.userName}</span>
+                    </div>
+
+                    <span className="text-[11px] font-black bg-slate-100 text-slate-700 px-2 py-0.5 rounded-lg">
+                      {req.timeSlot}
+                    </span>
+                  </div>
+
+                  {/* Body */}
+                  <div className="my-2.5 text-xs text-slate-600 space-y-1">
+                    <p><strong>آدرس:</strong> {req.address.street}</p>
+                    <div className="flex justify-between items-center text-[11px] pt-1">
+                      <span className="font-bold text-slate-800">
+                        تخمین بار: {toPersianDigits(req.estimatedKg)} کیلوگرم
+                      </span>
+                      <span className={`font-bold ${req.type === 'charity' ? 'text-rose-600' : 'text-emerald-700'}`}>
+                        {req.type === 'charity' ? 'نیکوکاری' : `نقدی (${formatTomans(req.approximatePayoutTomans)})`}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <a
+                      href={`tel:${req.userPhone}`}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1"
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                      <span>تماس</span>
+                    </a>
+
+                    <button
+                      onClick={() => onAcceptRequest(req.id, driverProfile.name)}
+                      className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black flex items-center gap-1 transition shadow-xs cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>پذیرش این سفارش</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {/* TAB 2: MY ACTIVE ASSIGNED REQUESTS & NAVIGATION */}
+      {/* TAB 2: MY ACTIVE ROUTE */}
       {activeTab === 'my_active' && (
-        <div className="space-y-4">
-          {myActiveRequests.length > 0 && (
-            <DriverRouteMap
-              requests={myActiveRequests}
-              cityCenter={city.center}
-            />
-          )}
-
+        <div className="space-y-4 animate-in fade-in">
           {myActiveRequests.length === 0 ? (
-            <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center">
-              <Truck className="w-12 h-12 text-slate-300 mx-auto mb-2" />
-              <p className="font-extrabold text-slate-700">در حال حاضر ماموریت فعالی ندارید</p>
-              <p className="text-xs text-slate-400 mt-1">از تب سفارشات ایام هفته، سفارش‌ها را به صورت تکی یا دسته‌جمعی پذیرش کنید.</p>
+            <div className="bg-white p-10 rounded-3xl border border-slate-200 text-center text-xs text-slate-500">
+              درحال حاضر سفارشی در مسیر فعال خود ندارید. از تب «برنامه هفتگی» سفارشات را بپذیرید.
             </div>
           ) : (
-            myActiveRequests.map((req, index) => (
-              <div
-                key={req.id}
-                className="bg-white rounded-3xl border-2 border-sky-400 p-4 sm:p-5 shadow-lg space-y-3"
-              >
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-full bg-rose-500 text-white font-black text-xs flex items-center justify-center font-mono">
-                      {toPersianDigits(index + 1)}
+            <div className="space-y-3">
+              {myActiveRequests.map((req) => (
+                <div key={req.id} className="bg-white p-4 sm:p-5 rounded-2xl border-2 border-sky-300 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-black text-sky-900 bg-sky-100 px-2 py-0.5 rounded-lg">
+                        {req.trackingCode}
+                      </span>
+                      <span className="font-bold text-slate-900">{req.userName}</span>
+                    </div>
+
+                    <span className="text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full animate-pulse">
+                      درحال مراجعه
                     </span>
-                    <span className="text-xs font-mono font-black bg-sky-100 text-sky-900 px-2.5 py-1 rounded-xl">
-                      شماره بازیافت: #{toPersianDigits(req.id)}
-                    </span>
-                    <span className="text-xs font-bold text-slate-900">شهروند: {req.userName}</span>
                   </div>
 
-                  <span className="text-xs font-black bg-sky-600 text-white px-3 py-1 rounded-full shadow-xs">
-                    در دست جمع‌آوری
-                  </span>
-                </div>
-
-                {/* Details summary */}
-                <div className="p-3 bg-sky-50/70 rounded-2xl border border-sky-100 text-xs text-slate-800 space-y-1.5">
-                  <div className="leading-relaxed">
-                    <strong>آدرس و لوکیشن:</strong> {req.cityName}، {req.address.street}
-                    {req.address.neighborhood ? ` (${req.address.neighborhood})` : ''}
-                    {req.address.plaque ? `، پلاک ${toPersianDigits(req.address.plaque)}` : ''}
-                    {req.address.unit ? `، واحد ${toPersianDigits(req.address.unit)}` : ''}
-                    {req.address.notes ? ` (${req.address.notes})` : ''}
+                  <div className="text-xs text-slate-700 space-y-1.5">
+                    <p><strong>آدرس تحویل:</strong> {req.address.street}</p>
+                    <p><strong>تلفن شهروند:</strong> <span className="font-mono">{toPersianDigits(req.userPhone)}</span></p>
+                    {req.address.notes && (
+                      <p className="text-[11px] text-amber-800 bg-amber-50 p-2 rounded-lg">
+                        <strong>یادداشت شهروند:</strong> {req.address.notes}
+                      </p>
+                    )}
                   </div>
-                  <div className="flex items-center justify-between pt-1 border-t border-sky-100 text-[11px]">
-                    <span>تلفن: <strong className="font-mono font-bold">{toPersianDigits(req.userPhone)}</strong></span>
-                    <span>وزن تخمینی: <strong>{toPersianDigits(req.estimatedKg)} کیلوگرم</strong> ({req.type === 'charity' ? 'نیکوکاری' : 'تسویه نقدی'})</span>
+
+                  {/* Actions Grid */}
+                  <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={`tel:${req.userPhone}`}
+                        className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center gap-1"
+                      >
+                        <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>تماس تلفنی</span>
+                      </a>
+
+                      <button
+                        onClick={() => setFlaggingRequest(req)}
+                        className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Flag className="w-3.5 h-3.5" />
+                        <span>گزارش مشکل</span>
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={() => handleOpenCompleteModal(req)}
+                      className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md transition cursor-pointer"
+                    >
+                      <Scale className="w-4 h-4" />
+                      <span>توزین و تکمیل نهایی</span>
+                    </button>
                   </div>
                 </div>
-
-                {/* Driver Action Buttons */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
-                  <a
-                    href={`tel:${req.userPhone}`}
-                    className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold rounded-2xl text-xs flex items-center justify-center gap-1.5 transition"
-                  >
-                    <Phone className="w-4 h-4 text-emerald-600" />
-                    <span>تماس با شهروند ({toPersianDigits(req.userPhone)})</span>
-                  </a>
-
-                  <button
-                    type="button"
-                    onClick={() => setNavTarget({
-                      lat: req.address.lat,
-                      lng: req.address.lng,
-                      userName: req.userName,
-                      street: req.address.street,
-                      cityName: req.cityName
-                    })}
-                    className="py-2.5 px-3 bg-sky-600 hover:bg-sky-700 text-white font-extrabold rounded-2xl text-xs flex items-center justify-center gap-1.5 transition shadow-md"
-                  >
-                    <Navigation className="w-4 h-4" />
-                    <span>مسیریابی (نشان/بلد/ویز/گوگل)</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleOpenCompleteModal(req)}
-                    className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl text-xs flex items-center justify-center gap-1.5 shadow-md transition active:scale-95"
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    <span>ثبت وزن و تسویه نهایی</span>
-                  </button>
-                </div>
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </div>
       )}
 
       {/* TAB 3: COMPLETED ARCHIVE */}
       {activeTab === 'completed' && (
-        <div className="space-y-3">
+        <div className="space-y-3 animate-in fade-in">
           {completedRequests.length === 0 ? (
-            <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center">
-              <CheckCircle className="w-12 h-12 text-slate-300 mx-auto mb-2" />
-              <p className="font-extrabold text-slate-700">هنوز سرویس تکمیل‌شده‌ای ثبت نشده است</p>
+            <div className="bg-white p-10 rounded-3xl border border-slate-200 text-center text-xs text-slate-500">
+              هنوز سفارشی تکمیل نشده است.
             </div>
           ) : (
             completedRequests.map((req) => (
-              <div
-                key={req.id}
-                className="bg-white rounded-3xl border border-slate-200 p-4 flex items-center justify-between text-xs shadow-xs"
-              >
+              <div key={req.id} className="bg-white p-4 rounded-2xl border border-slate-200 text-xs text-slate-700 flex items-center justify-between gap-2">
                 <div>
-                  <div className="font-extrabold text-slate-900">
-                    شماره بازیافت: #{toPersianDigits(req.id)} • {req.userName}
+                  <div className="font-mono font-black text-slate-900">{req.trackingCode} - {req.userName}</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    وزن تحویلی: {toPersianDigits(req.actualKg || req.estimatedKg)} کیلو • {req.type === 'charity' ? 'نیکوکاری' : `پرداخت نقدی ${formatTomans(req.cashPaidTomans || 0)}`}
                   </div>
-                  <div className="text-slate-500 text-[11px] mt-0.5">
-                    شهر: {req.cityName} | تاریخ: {toPersianDigits(req.dateStr)} | وزن دقیق: <strong className="text-slate-800 font-mono">{toPersianDigits(req.actualKg || req.estimatedKg)} کیلو</strong>
-                  </div>
+                  {req.driverNote && (
+                    <div className="text-[10px] text-slate-400 mt-0.5">یادداشت: {req.driverNote}</div>
+                  )}
                 </div>
 
-                <div className="text-left">
-                  {req.type === 'charity' ? (
-                    <span className="font-extrabold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-xl">
-                      صرف خیریه شد
-                    </span>
-                  ) : (
-                    <span className="font-black text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-xl font-mono">
-                      {formatTomans(req.cashPaidTomans || req.approximatePayoutTomans)} شارژ شد
-                    </span>
-                  )}
+                <div className="text-left shrink-0">
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-1 rounded-lg">
+                    تکمیل شده
+                  </span>
                 </div>
               </div>
             ))
@@ -843,103 +709,312 @@ export const DriverPanel: React.FC<DriverPanelProps> = ({
         </div>
       )}
 
-      {/* Navigation Modal */}
-      {navTarget && (
-        <NavigationModal
-          isOpen={true}
-          onClose={() => setNavTarget(null)}
-          lat={navTarget.lat}
-          lng={navTarget.lng}
-          userName={navTarget.userName}
-          street={navTarget.street}
-          cityName={navTarget.cityName}
-        />
-      )}
-
-      {/* Scale & Weighing Completion Modal */}
-      {completingRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
-                <Scale className="w-5 h-5 text-emerald-600" />
-                <span>ثبت وزن‌کشی نهایی ترازوی دیجیتال</span>
-              </h3>
-              <button
-                onClick={() => setCompletingRequest(null)}
-                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition"
-              >
-                ✕
-              </button>
+      {/* TAB 4: DRIVER PROFILE & STATS */}
+      {activeTab === 'profile' && (
+        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-2xs space-y-5 animate-in fade-in">
+          <div className="flex items-center gap-4 border-b border-slate-100 pb-4">
+            <div className="w-16 h-16 rounded-2xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center text-2xl">
+              👨‍✈️
             </div>
-
-            <div className="p-3 bg-emerald-50 rounded-2xl text-xs text-emerald-900 font-bold">
-              شماره بازیافت: <strong>#{toPersianDigits(completingRequest.id)}</strong> | شهروند: {completingRequest.userName} ({completingRequest.cityName})
-            </div>
-
-            {/* Scale Weight Input */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                وزن دقیق اندازه‌گیری شده با ترازوی دیجیتال (کیلوگرم):
-              </label>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => handleWeightChange(Math.max(5, actualWeightKg - 1))}
-                  className="w-11 h-11 rounded-2xl bg-slate-100 font-black text-lg hover:bg-slate-200 transition"
-                >
-                  -
-                </button>
-                <input
-                  type="number"
-                  value={actualWeightKg}
-                  onChange={(e) => handleWeightChange(Math.max(1, Number(e.target.value)))}
-                  className="flex-1 text-center font-mono text-2xl font-black py-2.5 border-2 border-emerald-500/40 rounded-2xl text-emerald-900 focus:border-emerald-600 focus:outline-none"
-                  min={5}
-                />
-                <button
-                  type="button"
-                  onClick={() => handleWeightChange(actualWeightKg + 1)}
-                  className="w-11 h-11 rounded-2xl bg-slate-100 font-black text-lg hover:bg-slate-200 transition"
-                >
-                  +
-                </button>
+              <h3 className="font-black text-base text-slate-900">{driverProfile.name}</h3>
+              <p className="text-xs text-slate-500 mt-0.5">کد شناسایی راننده: {driverProfile.id}</p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs font-black text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-amber-200">
+                  <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                  <span>{toPersianDigits(driverProfile.rating)} از ۵ ({toPersianDigits(driverProfile.ratingCount)} نظر شهروند)</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Stats Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-center">
+              <div className="text-xs text-slate-500">کل مراجعات موفق</div>
+              <div className="text-lg font-black text-slate-900 mt-1">
+                {toPersianDigits(driverProfile.totalCompletedPickups)} <span className="text-xs font-normal">سفارش</span>
               </div>
             </div>
 
-            {/* Financial or Charity Payout */}
-            {completingRequest.type === 'cash' ? (
-              <div className="p-4 bg-emerald-50/80 border border-emerald-200 rounded-2xl space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-emerald-900">مبلغ واریز به کیف پول شهروند:</span>
-                  <span className="font-mono font-black text-emerald-800 text-sm">
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-center">
+              <div className="text-xs text-slate-500">مجموع وزن جمع‌آوری</div>
+              <div className="text-lg font-black text-emerald-700 mt-1">
+                {toPersianDigits(driverProfile.totalCollectedKg)} <span className="text-xs font-normal">کیلو</span>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-center col-span-2 sm:col-span-1">
+              <div className="text-xs text-slate-500">پلاک و ناوگان</div>
+              <div className="text-xs font-bold text-slate-800 font-mono mt-1">
+                {driverProfile.plateNumber}
+              </div>
+            </div>
+          </div>
+
+          {/* Account Credentials Box */}
+          <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="space-y-1 text-slate-800">
+              <div className="font-bold flex items-center gap-1.5 text-emerald-950">
+                <Lock className="w-3.5 h-3.5 text-emerald-700" />
+                <span>اطلاعات ورود سفیر (تنظیم‌شده در پنل مدیریت):</span>
+              </div>
+              <div className="text-slate-600 flex flex-wrap gap-x-4 gap-y-1 pt-1 font-mono">
+                <span>شماره تماس: <strong className="text-slate-900">{driverProfile.phone}</strong></span>
+                <span>رمز عبور: <strong className="text-slate-900">{driverProfile.password || driverProfile.pinCode || '1234'}</strong></span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsAuthenticated(false);
+                setPasswordInput('');
+              }}
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs self-end sm:self-center"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>خروج از پنل</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* COMPLETION MODAL */}
+      {completingRequest && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="text-center">
+              <h3 className="font-black text-base text-slate-900">
+                توزین نهایی و تسویه ({completingRequest.trackingCode})
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                مشتری: {completingRequest.userName}
+              </p>
+            </div>
+
+            {/* Actual Weight Input */}
+            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
+              <label className="block text-xs font-bold text-slate-800">
+                وزن دقیق باسکول / ترازوی دیجیتال (کیلوگرم):
+              </label>
+              <input
+                type="number"
+                min="1"
+                step="0.5"
+                value={actualWeightKg}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setActualWeightKg(val);
+                  setCashAmountTomans(val * 15000);
+                }}
+                className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-base font-mono font-black text-center text-slate-900 outline-hidden"
+              />
+            </div>
+
+            {/* Payout if Cash */}
+            {completingRequest.type === 'cash' && (
+              <div className="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-200 space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-bold text-emerald-900">مبلغ قابل پرداخت به شهروند:</span>
+                  <span className="font-black text-emerald-900 font-mono text-sm">
                     {formatTomans(cashAmountTomans)}
                   </span>
                 </div>
-                <input
-                  type="number"
-                  value={cashAmountTomans}
-                  onChange={(e) => setCashAmountTomans(Number(e.target.value))}
-                  className="w-full font-mono text-sm py-2 px-3 bg-white border border-emerald-300 rounded-xl font-bold text-emerald-700 focus:outline-none"
-                />
-                <p className="text-[11px] text-emerald-700 flex items-center gap-1">
-                  <Sparkles className="w-3 h-3" />
-                  <span>این مبلغ بلافاصله به کیف پول حساب شهروند واریز می‌شود.</span>
-                </p>
-              </div>
-            ) : (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 font-medium">
-                ❤️ عواید کامل این بار به ارزش تقریبی <strong>{formatTomans(actualWeightKg * 15000)}</strong> مستقیماً به حساب خیریه واریز خواهد شد.
+
+                <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPaymentMode('direct_card')}
+                    className={`p-2 rounded-xl border text-center font-bold transition cursor-pointer ${
+                      selectedPaymentMode === 'direct_card'
+                        ? 'bg-emerald-600 text-white border-emerald-600'
+                        : 'bg-white text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    کارت‌به‌کارت مستقیم راننده
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPaymentMode('wallet')}
+                    className={`p-2 rounded-xl border text-center font-bold transition cursor-pointer ${
+                      selectedPaymentMode === 'wallet'
+                        ? 'bg-emerald-600 text-white border-emerald-600'
+                        : 'bg-white text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    شارژ کیف پول پاکینو
+                  </button>
+                </div>
               </div>
             )}
 
-            <button
-              onClick={handleConfirmComplete}
-              className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition active:scale-95"
-            >
-              <Check className="w-5 h-5" />
-              <span>تایید نهایی و صدور فاکتور تحویل</span>
-            </button>
+            {/* Driver Note */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                یادداشت سفیر در مورد این تحویل (اختیاری):
+              </label>
+              <input
+                type="text"
+                value={driverCompletionNote}
+                onChange={(e) => setDriverCompletionNote(e.target.value)}
+                placeholder="مثال: کارتن‌ها تفکیک‌شده و خشک بودند"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+              />
+            </div>
+
+            {/* CITIZEN RATING BY DRIVER (سیستم ستاره‌دهی راننده به شهروند) */}
+            <div className="bg-amber-50/80 p-3.5 rounded-2xl border border-amber-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black text-amber-950 flex items-center gap-1.5">
+                  <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
+                  <span>امتیازدهی سفیر به نحوه تفکیک و رفتار شهروند:</span>
+                </label>
+                <span className="text-[11px] font-bold text-amber-800">
+                  {citizenRatingStars === 5 && 'عالی و کاملاً تفکیک‌شده'}
+                  {citizenRatingStars === 4 && 'خوب و مرتب'}
+                  {citizenRatingStars === 3 && 'متوسط و معمولی'}
+                  {citizenRatingStars === 2 && 'ضعیف / تاخیر یا پسماند ناخالص'}
+                  {citizenRatingStars === 1 && 'بسیار ضعیف / غیبت در محل'}
+                </span>
+              </div>
+
+              {/* 5 Stars */}
+              <div className="flex items-center justify-center gap-2 py-1">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onMouseEnter={() => setCitizenRatingHover(star)}
+                    onMouseLeave={() => setCitizenRatingHover(0)}
+                    onClick={() => setCitizenRatingStars(star)}
+                    className="p-1 transition transform hover:scale-125 cursor-pointer"
+                    title={`${star} ستاره`}
+                  >
+                    <Star
+                      className={`w-7 h-7 transition-colors ${
+                        (citizenRatingHover || citizenRatingStars) >= star
+                          ? 'fill-amber-400 text-amber-500 drop-shadow-xs'
+                          : 'text-slate-300'
+                      }`}
+                    />
+                  </button>
+                ))}
+              </div>
+
+              {/* Quick Tags */}
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {[
+                  'تفکیک اصولی و تمیز',
+                  'بسته‌بندی مناسب',
+                  'پسماند خیس یا آلوده',
+                  'تاخیر شهروند در تحویل',
+                  'برخورد محترمانه'
+                ].map((tag) => {
+                  const isSelected = selectedCitizenTags.includes(tag);
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => {
+                        setSelectedCitizenTags((prev) =>
+                          isSelected ? prev.filter((t) => t !== tag) : [...prev, tag]
+                        );
+                      }}
+                      className={`text-[10px] px-2.5 py-1 rounded-lg border font-bold transition cursor-pointer ${
+                        isSelected
+                          ? 'bg-amber-600 text-white border-amber-600'
+                          : 'bg-white text-slate-700 border-amber-200 hover:bg-amber-100/50'
+                      }`}
+                    >
+                      {tag}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setCompletingRequest(null)}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-xs"
+              >
+                انصراف
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmComplete}
+                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs shadow-md"
+              >
+                ثبت و صدور فاکتور نهایی
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ISSUE FLAGGING MODAL */}
+      {flaggingRequest && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="text-center">
+              <h3 className="font-black text-base text-rose-700">
+                گزارش عدم تحویل / مشکل سفارش ({flaggingRequest.trackingCode})
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                علت عدم انجام تحویل را انتخاب نمایید:
+              </p>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              {[
+                { id: 'citizen_absent', label: 'عدم حضور شهروند در محل پس از تماس' },
+                { id: 'waste_unprepared', label: 'عدم تفکیک و آماده نبودن پسماند' },
+                { id: 'wrong_address', label: 'آدرس نادرست یا خارج از محدوده تردد' }
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setSelectedIssueType(item.id as any)}
+                  className={`w-full p-3 rounded-xl border text-right font-bold transition cursor-pointer ${
+                    selectedIssueType === item.id
+                      ? 'bg-rose-50 border-rose-500 text-rose-900'
+                      : 'bg-slate-50 border-slate-200 text-slate-700'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">توضیح تکمیلی:</label>
+              <input
+                type="text"
+                value={issueNote}
+                onChange={(e) => setIssueNote(e.target.value)}
+                placeholder="توضیحات کوتاه..."
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setFlaggingRequest(null)}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-xs"
+              >
+                انصراف
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmFlagIssue}
+                className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black text-xs shadow-md"
+              >
+                ثبت گزارش مشکل
+              </button>
+            </div>
           </div>
         </div>
       )}

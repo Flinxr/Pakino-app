@@ -1,281 +1,437 @@
-import React, { useState, useEffect } from 'react';
-import { X, Phone, User, CheckCircle2, ArrowRight, ShieldCheck, RefreshCw, Sparkles } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Phone, User, CheckCircle2, Lock, Eye, EyeOff, Sparkles, UserPlus, LogIn } from 'lucide-react';
 import { UserProfile, CityId } from '../types';
-import { toPersianDigits } from '../utils/persian';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onLoginSuccess: (user: Partial<UserProfile>) => void;
   currentCity: CityId;
+  usersList?: UserProfile[];
+  onRegisterUser?: (newUser: UserProfile) => void;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
   isOpen,
   onClose,
   onLoginSuccess,
-  currentCity
+  currentCity,
+  usersList = [],
+  onRegisterUser
 }) => {
-  const [step, setStep] = useState<'info' | 'otp'>('info');
+  const [mode, setMode] = useState<'login' | 'register'>('login');
   const [phone, setPhone] = useState('0917');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [otpCode, setOtpCode] = useState('');
-  const [generatedOtp, setGeneratedOtp] = useState('48291');
-  const [timer, setTimer] = useState(120);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const [showSmsNotice, setShowSmsNotice] = useState(false);
-
-  useEffect(() => {
-    let interval: any;
-    if (step === 'otp' && timer > 0) {
-      interval = setInterval(() => setTimer((t) => t - 1), 1000);
-    }
-    return () => clearInterval(interval);
-  }, [step, timer]);
 
   if (!isOpen) return null;
 
-  const handleSendOtp = (e: React.FormEvent) => {
+  const normalizeDigits = (str: string) => {
+    return str.replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString()).trim();
+  };
+
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    // Iranian mobile phone validation: 11 digits starting with 09
-    const cleanPhone = phone.trim();
+    const cleanPhone = normalizeDigits(phone);
+    const cleanPassword = normalizeDigits(password);
+
     if (!cleanPhone.startsWith('09') || cleanPhone.length !== 11) {
-      setError('لطفاً شماره موبایل ۱۱ رقمی معتبر (مانند ۰۹۱۷۱۲۳۴۵۶۷) وارد کنید');
+      setError('شماره موبایل باید ۱۱ رقمی و با ۰۹ آغاز شود (مثال: ۰۹۱۷۱۲۳۴۵۶۷)');
+      return;
+    }
+
+    if (!cleanPassword) {
+      setError('لطفاً رمز عبور حساب کاربری خود را وارد کنید');
+      return;
+    }
+
+    // Search in registered users
+    const matchedUser = usersList.find((u) => normalizeDigits(u.phone) === cleanPhone);
+
+    if (matchedUser) {
+      const userPass = normalizeDigits(matchedUser.password || '123456');
+      if (cleanPassword === userPass || cleanPassword === '123456') {
+        onLoginSuccess({
+          ...matchedUser,
+          isRegistered: true
+        });
+        onClose();
+        return;
+      } else {
+        setError('رمز عبور وارد شده نادرست است. (رمز پیش‌فرض تستی: ۱۲۳۴۵۶)');
+        return;
+      }
+    }
+
+    // If demo default user (09171234567)
+    if (cleanPhone === '09171234567' && (cleanPassword === '123456' || cleanPassword === '1234')) {
+      onLoginSuccess({
+        id: 'usr-101',
+        phone: '09171234567',
+        firstName: 'علی',
+        lastName: 'حسینی',
+        password: cleanPassword,
+        cityId: currentCity,
+        isRegistered: true
+      });
+      onClose();
+      return;
+    }
+
+    // If user not in system yet
+    setError('حساب کاربری با این شماره یافت نشد. لطفاً ابتدا از تب «ثبت‌نام جدید» اقدام به ایجاد حساب فرمایید.');
+  };
+
+  const handleRegister = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    const cleanPhone = normalizeDigits(phone);
+    const cleanPassword = normalizeDigits(password);
+    const cleanConfirm = normalizeDigits(confirmPassword);
+
+    if (!cleanPhone.startsWith('09') || cleanPhone.length !== 11) {
+      setError('شماره موبایل باید ۱۱ رقمی و با ۰۹ آغاز شود (مانند ۰۹۱۷۱۲۳۴۵۶۷)');
       return;
     }
 
     if (!firstName.trim() || !lastName.trim()) {
-      setError('لطفاً نام و نام خانوادگی خود را کامل وارد فرمایید');
+      setError('لطفاً نام و نام خانوادگی را وارد فرمایید');
       return;
     }
 
-    // Generate random 5-digit code
-    const newCode = String(Math.floor(10000 + Math.random() * 90000));
-    setGeneratedOtp(newCode);
-    setStep('otp');
-    setTimer(120);
-    setShowSmsNotice(true);
-  };
-
-  const handleVerifyOtp = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-
-    if (otpCode.trim() !== generatedOtp && otpCode.trim() !== '12345') {
-      setError('کد وارد شده صحیح نمی‌باشد. لطفاً مجدداً بررسی فرمایید.');
+    if (!cleanPassword || cleanPassword.length < 4) {
+      setError('رمز عبور باید حداقل ۴ رقم یا کاراکتر باشد');
       return;
     }
 
-    onLoginSuccess({
-      phone,
-      firstName,
-      lastName,
+    if (cleanPassword !== cleanConfirm) {
+      setError('رمز عبور با تکرار آن یکسان نیست');
+      return;
+    }
+
+    // Check if phone already registered
+    const existing = usersList.find((u) => normalizeDigits(u.phone) === cleanPhone);
+    if (existing) {
+      setError('این شماره تلفن قبلاً در سامانه ثبت شده است. لطفاً وارد شوید.');
+      setMode('login');
+      return;
+    }
+
+    const newUser: UserProfile = {
+      id: `usr-${Date.now().toString().slice(-4)}`,
+      phone: cleanPhone,
+      password: cleanPassword,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
       cityId: currentCity,
+      walletBalanceTomans: 50000, // 50k gift
+      totalKgRecycled: 0,
+      totalDonatedKg: 0,
+      totalEarnedTomans: 0,
+      lotteryPoints: 50, // Welcome bonus
       isRegistered: true,
-      lotteryPoints: 50 // Welcome bonus lottery points!
-    });
+      status: 'active',
+      warningCount: 0
+    };
+
+    if (onRegisterUser) {
+      onRegisterUser(newUser);
+    }
+    onLoginSuccess(newUser);
     onClose();
   };
 
-  const formatTimer = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${toPersianDigits(mins)}:${secs < 10 ? '۰' : ''}${toPersianDigits(secs)}`;
+  const fillDemoCredentials = () => {
+    setMode('login');
+    setPhone('09171234567');
+    setPassword('123456');
+    setError('');
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div 
         className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="bg-gradient-to-r from-emerald-700 to-emerald-600 p-6 text-white relative">
+        <div className="bg-gradient-to-r from-emerald-700 via-emerald-800 to-teal-900 p-5 text-white relative">
           <button
             id="close-auth-modal"
+            type="button"
             onClick={onClose}
-            className="absolute top-4 left-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition"
+            className="absolute top-4 left-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
 
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30">
-              <ShieldCheck className="w-7 h-7 text-white" />
+            <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner">
+              {mode === 'login' ? <LogIn className="w-6 h-6 text-white" /> : <UserPlus className="w-6 h-6 text-white" />}
             </div>
             <div>
-              <h2 className="text-xl font-black">ورود و عضویت در پاکینو</h2>
+              <h2 className="text-lg font-black">
+                {mode === 'login' ? 'ورود به حساب شهروندی پاکینو' : 'ثبت‌نام شهروند جدید'}
+              </h2>
               <p className="text-xs text-emerald-100 mt-0.5">
-                {step === 'info' ? 'مرحله ۱: ثبت اطلاعات اولیه شهروند' : 'مرحله ۲: تایید شماره همراه پیامکی'}
+                ورود و عضویت مستقیم با شماره تلفن و رمز عبور (بدون نیاز به پیامک)
               </p>
             </div>
+          </div>
+
+          {/* Mode Switcher Tabs */}
+          <div className="flex bg-black/20 p-1 rounded-2xl mt-4 border border-white/10 text-xs font-black">
+            <button
+              type="button"
+              onClick={() => {
+                setMode('login');
+                setError('');
+              }}
+              className={`flex-1 py-2 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                mode === 'login' ? 'bg-white text-emerald-950 shadow-md' : 'text-white/80 hover:text-white'
+              }`}
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>ورود با رمز عبور</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('register');
+                setError('');
+              }}
+              className={`flex-1 py-2 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                mode === 'register' ? 'bg-white text-emerald-950 shadow-md' : 'text-white/80 hover:text-white'
+              }`}
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>ثبت‌نام جدید</span>
+            </button>
           </div>
         </div>
 
         {/* Modal Body */}
-        <div className="p-6">
+        <div className="p-5 sm:p-6 space-y-4">
           {error && (
-            <div className="mb-4 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+            <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
-          {step === 'info' ? (
-            <form onSubmit={handleSendOtp} className="space-y-4">
-              <div className="p-3 bg-emerald-50/80 border border-emerald-100 rounded-2xl text-xs text-emerald-900 flex items-start gap-2.5">
-                <Sparkles className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
-                <p className="leading-relaxed">
-                  با ثبت‌نام در سامانه پاکینو، پس از هر تحویل پسماند بازیافتی به صورت خودکار در قرعه‌کشی ماهانه شرکت داده می‌شوید.
-                </p>
-              </div>
-
+          {mode === 'login' ? (
+            /* LOGIN FORM */
+            <form onSubmit={handleLogin} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
                   شماره تلفن همراه <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
                   <input
-                    id="auth-phone-input"
+                    id="login-phone"
                     type="tel"
                     dir="ltr"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="09171234567"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-slate-900 font-mono text-sm tracking-widest text-left focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-900 font-mono text-sm tracking-wider text-left focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition"
                     maxLength={11}
                     required
                   />
-                  <Phone className="w-4 h-4 text-slate-400 absolute right-4 top-3.5" />
+                  <Phone className="w-4 h-4 text-slate-400 absolute right-3.5 top-3" />
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1">کد تایید پیامکی به این شماره ارسال خواهد شد.</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  رمز عبور <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    id="login-password"
+                    type={showPassword ? 'text' : 'password'}
+                    dir="ltr"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="رمز عبور خود را وارد کنید"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-900 font-mono text-sm tracking-wider text-left focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Demo Account Helper */}
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between text-xs text-slate-600">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <span>تست سریع: ۰۹۱۷۱۲۳۴۵۶۷ (رمز: ۱۲۳۴۵۶)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={fillDemoCredentials}
+                  className="text-emerald-700 font-bold hover:underline bg-white px-2.5 py-1 rounded-xl border border-slate-200 shadow-2xs cursor-pointer"
+                >
+                  درج خودکار
+                </button>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-black py-3 rounded-2xl shadow-lg shadow-emerald-600/20 transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>ورود به حساب کاربری</span>
+              </button>
+
+              <div className="text-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('register');
+                    setError('');
+                  }}
+                  className="text-xs text-slate-500 hover:text-emerald-700 font-bold transition cursor-pointer"
+                >
+                  هنوز در پاکینو ثبت‌نام نکرده‌اید؟ <span className="text-emerald-600 underline">ایجاد حساب جدید</span>
+                </button>
+              </div>
+            </form>
+          ) : (
+            /* REGISTER FORM */
+            <form onSubmit={handleRegister} className="space-y-3">
+              <div className="p-2.5 bg-emerald-50 border border-emerald-100 rounded-2xl text-[11px] text-emerald-900 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>۵۰ کیلو امتیاز خوش‌آمدگویی و شانس قرعه‌کشی پس از ثبت‌نام به شما هدیه می‌شود!</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  شماره تلفن همراه <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    id="register-phone"
+                    type="tel"
+                    dir="ltr"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="09171234567"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-900 font-mono text-sm tracking-wider text-left focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition"
+                    maxLength={11}
+                    required
+                  />
+                  <Phone className="w-4 h-4 text-slate-400 absolute right-3.5 top-3" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
                     نام <span className="text-rose-500">*</span>
                   </label>
-                  <div className="relative">
-                    <input
-                      id="auth-firstname-input"
-                      type="text"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      placeholder="مثال: علی"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-3 py-3 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition"
-                      required
-                    />
-                    <User className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
-                  </div>
+                  <input
+                    id="register-firstname"
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="مثال: علی"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2.5 text-slate-900 text-xs font-bold focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition"
+                    required
+                  />
                 </div>
-
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
                     نام خانوادگی <span className="text-rose-500">*</span>
                   </label>
                   <input
-                    id="auth-lastname-input"
+                    id="register-lastname"
                     type="text"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
                     placeholder="مثال: حسینی"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-3 py-3 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2.5 text-slate-900 text-xs font-bold focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    رمز عبور دلخواه <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="register-password"
+                      type={showPassword ? 'text' : 'password'}
+                      dir="ltr"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="حداقل ۴ رقم"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2.5 text-slate-900 font-mono text-xs text-left focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    تکرار رمز عبور <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    id="register-confirm-password"
+                    type={showPassword ? 'text' : 'password'}
+                    dir="ltr"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="تکرار همان رمز"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2.5 text-slate-900 font-mono text-xs text-left focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white transition"
                     required
                   />
                 </div>
               </div>
 
               <button
-                id="auth-send-sms-btn"
                 type="submit"
-                className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-2xl shadow-lg shadow-emerald-600/25 transition flex items-center justify-center gap-2"
+                className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-black py-3 rounded-2xl shadow-lg shadow-emerald-600/20 transition flex items-center justify-center gap-2 cursor-pointer"
               >
-                <span>دریافت کد پیامکی</span>
-                <ArrowRight className="w-4 h-4 rotate-180" />
+                <CheckCircle2 className="w-4 h-4" />
+                <span>ثبت‌نام و ورود به سامانه</span>
               </button>
-            </form>
-          ) : (
-            <form onSubmit={handleVerifyOtp} className="space-y-4">
-              {showSmsNotice && (
-                <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
-                  <div className="flex items-center justify-between font-bold mb-1">
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-                      پیامک شبیه‌سازی شده پاکینو
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setOtpCode(generatedOtp)}
-                      className="text-emerald-700 hover:underline bg-white px-2 py-0.5 rounded-lg border border-amber-200 shadow-2xs font-mono"
-                    >
-                      درج خودکار کد
-                    </button>
-                  </div>
-                  <p className="font-mono text-slate-700 bg-white/70 p-2 rounded-xl border border-amber-100 mt-1">
-                    کد تایید ورود شما: <strong className="text-emerald-700 text-sm tracking-wider">{toPersianDigits(generatedOtp)}</strong> ({generatedOtp})
-                  </p>
-                </div>
-              )}
 
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-bold text-slate-700">
-                    کد ۵ رقمی ارسال شده به {toPersianDigits(phone)}
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setStep('info')}
-                    className="text-[11px] text-emerald-600 hover:underline font-semibold"
-                  >
-                    ویرایش شماره
-                  </button>
-                </div>
-                <input
-                  id="auth-otp-input"
-                  type="text"
-                  dir="ltr"
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value)}
-                  placeholder="_ _ _ _ _"
-                  className="w-full bg-slate-50 border-2 border-emerald-500 rounded-2xl px-4 py-3.5 text-center text-slate-900 font-mono text-xl font-bold tracking-[0.5em] focus:outline-none focus:bg-white transition"
-                  maxLength={5}
-                  autoFocus
-                  required
-                />
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('login');
+                    setError('');
+                  }}
+                  className="text-xs text-slate-500 hover:text-emerald-700 font-bold transition cursor-pointer"
+                >
+                  قبلاً ثبت‌نام کرده‌اید؟ <span className="text-emerald-600 underline">ورود با رمز عبور</span>
+                </button>
               </div>
-
-              <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
-                {timer > 0 ? (
-                  <span>ارسال مجدد کد تا: {formatTimer(timer)}</span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const newCode = String(Math.floor(10000 + Math.random() * 90000));
-                      setGeneratedOtp(newCode);
-                      setTimer(120);
-                      setShowSmsNotice(true);
-                    }}
-                    className="text-emerald-600 font-bold hover:underline flex items-center gap-1"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>ارسال مجدد پیامک</span>
-                  </button>
-                )}
-              </div>
-
-              <button
-                id="auth-verify-btn"
-                type="submit"
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-2xl shadow-lg shadow-emerald-600/25 transition flex items-center justify-center gap-2"
-              >
-                <CheckCircle2 className="w-5 h-5" />
-                <span>تایید و ورود به پاکینو</span>
-              </button>
             </form>
           )}
         </div>
