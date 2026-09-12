@@ -8,13 +8,19 @@ interface DriverRouteMapProps {
   cityCenter: { lat: number; lng: number };
   onSelectRequest?: (req: PickupRequest) => void;
   selectedRequestId?: string | null;
+  title?: string;
+  polylineColor?: string;
+  heightClass?: string;
 }
 
 export const DriverRouteMap: React.FC<DriverRouteMapProps> = ({
   requests,
   cityCenter,
   onSelectRequest,
-  selectedRequestId
+  selectedRequestId,
+  title,
+  polylineColor = '#ef4444',
+  heightClass = 'h-72 sm:h-96'
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -45,7 +51,10 @@ export const DriverRouteMap: React.FC<DriverRouteMapProps> = ({
     }
 
     return () => {
-      // Keep instance or cleanup on unmount
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
     };
   }, [cityCenter.lat, cityCenter.lng]);
 
@@ -148,12 +157,12 @@ export const DriverRouteMap: React.FC<DriverRouteMapProps> = ({
       markersGroupRef.current?.addLayer(marker);
     });
 
-    // Draw dashed red connection line between stops
+    // Draw dashed connection line between stops
     if (latlngs.length > 1) {
       polylineRef.current = L.polyline(latlngs, {
-        color: '#ef4444',
+        color: polylineColor,
         weight: 3.5,
-        opacity: 0.8,
+        opacity: 0.85,
         dashArray: '8, 8',
         lineCap: 'round'
       }).addTo(map);
@@ -164,17 +173,17 @@ export const DriverRouteMap: React.FC<DriverRouteMapProps> = ({
       const bounds = L.latLngBounds(latlngs);
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
     }
-  }, [requests, selectedRequestId, onSelectRequest]);
+  }, [requests, selectedRequestId, onSelectRequest, polylineColor]);
 
   return (
-    <div className="relative w-full h-72 sm:h-96 rounded-3xl overflow-hidden border-2 border-rose-500/40 shadow-lg bg-slate-100">
+    <div className={`relative w-full ${heightClass} rounded-3xl overflow-hidden border-2 border-slate-300 shadow-md bg-slate-100`}>
       <div ref={mapContainerRef} className="w-full h-full" />
       
       {/* Overlay Badge */}
       <div className="absolute top-3 right-3 z-20 bg-slate-900/90 text-white backdrop-blur-md px-3 py-1.5 rounded-2xl shadow-md border border-slate-700 flex items-center gap-2 text-xs font-bold">
         <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
         <span className="w-2.5 h-2.5 rounded-full bg-rose-500 -mr-4.5"></span>
-        <span>نقشه مسیر سفر راننده (نقاط قرمز توقف)</span>
+        <span>{title || 'نقشه مسیر سفر راننده (نقاط توقف)'}</span>
         <span className="bg-rose-500 text-white text-[10px] font-mono px-1.5 py-0.2 rounded-full">
           {toPersianDigits(requests.length)} نقطه
         </span>

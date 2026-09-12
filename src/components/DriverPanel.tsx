@@ -36,7 +36,8 @@ import {
   FileText,
   Send,
   EyeOff,
-  LogOut
+  LogOut,
+  Compass
 } from 'lucide-react';
 import { PickupRequest, CityId, DriverProfile, FeedbackItem } from '../types';
 import { CITIES, TIME_SLOTS } from '../data/cities';
@@ -112,6 +113,7 @@ export const DriverPanel: React.FC<DriverPanelProps> = ({
   // Batch selection of requests
   const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
   const [showRouteMap, setShowRouteMap] = useState<boolean>(true);
+  const [showScheduleMap, setShowScheduleMap] = useState<boolean>(true);
 
   // Complete Pickup Modal State
   const [completingRequest, setCompletingRequest] = useState<PickupRequest | null>(null);
@@ -539,6 +541,57 @@ export const DriverPanel: React.FC<DriverPanelProps> = ({
             )}
           </div>
 
+          {/* Map for the Selected Day's Pending Requests */}
+          <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                  <MapPin className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs sm:text-sm font-black text-slate-900">
+                    نقشه موقعیت و نقطه‌گذاری سفارشات {selectedDayKey === 'all' ? 'کل هفته' : currentSelectedDay?.dayName}
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    موقعیت جغرافیایی تمام درخواست‌های در انتظار جمع‌آوری این روز روی نقشه
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-mono font-black bg-emerald-50 text-emerald-800 px-2.5 py-1 rounded-xl border border-emerald-100">
+                  {toPersianDigits(filteredPendingRequests.length)} نقطه روی نقشه
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowScheduleMap(!showScheduleMap)}
+                  className="text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition cursor-pointer"
+                >
+                  {showScheduleMap ? 'بستن نقشه' : 'نمایش نقشه'}
+                </button>
+              </div>
+            </div>
+
+            {showScheduleMap && (
+              <div>
+                {filteredPendingRequests.length === 0 ? (
+                  <div className="h-36 bg-slate-50 rounded-2xl border border-dashed border-slate-200 flex flex-col items-center justify-center text-xs text-slate-500 gap-1.5">
+                    <Map className="w-6 h-6 text-slate-400" />
+                    <span>سفارشی برای این روز جهت نمایش بر روی نقشه وجود ندارد.</span>
+                  </div>
+                ) : (
+                  <DriverRouteMap
+                    requests={filteredPendingRequests}
+                    cityCenter={city.center}
+                    title={`موقعیت سفارشات ${selectedDayKey === 'all' ? 'کل هفته' : currentSelectedDay?.dayName}`}
+                    heightClass="h-64 sm:h-80"
+                    polylineColor="#10b981"
+                  />
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Pending Requests List */}
           {filteredPendingRequests.length === 0 ? (
             <div className="bg-white p-10 rounded-3xl border border-slate-200 text-center text-xs text-slate-500">
@@ -585,14 +638,31 @@ export const DriverPanel: React.FC<DriverPanelProps> = ({
                   </div>
 
                   {/* Actions */}
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-                    <a
-                      href={`tel:${req.userPhone}`}
-                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1"
-                    >
-                      <Phone className="w-3.5 h-3.5" />
-                      <span>تماس</span>
-                    </a>
+                  <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={`tel:${req.userPhone}`}
+                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1"
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                        <span>تماس</span>
+                      </a>
+
+                      <button
+                        type="button"
+                        onClick={() => setNavTarget({
+                          lat: req.address.lat,
+                          lng: req.address.lng,
+                          userName: req.userName,
+                          street: req.address.street,
+                          cityName: city.name
+                        })}
+                        className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer transition"
+                      >
+                        <Navigation className="w-3.5 h-3.5 text-sky-600" />
+                        <span>مسیریابی و لوکیشن</span>
+                      </button>
+                    </div>
 
                     <button
                       onClick={() => onAcceptRequest(req.id, driverProfile.name)}
@@ -612,14 +682,49 @@ export const DriverPanel: React.FC<DriverPanelProps> = ({
       {/* TAB 2: MY ACTIVE ROUTE */}
       {activeTab === 'my_active' && (
         <div className="space-y-4 animate-in fade-in">
+          {/* Top Route Map for All Accepted Requests */}
+          {myActiveRequests.length > 0 && (
+            <div className="bg-white p-4 sm:p-5 rounded-3xl border-2 border-sky-300 shadow-xs space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-sky-600 text-white flex items-center justify-center shadow-xs">
+                    <Navigation className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm sm:text-base font-black text-slate-900">
+                      نقشه جامع مسیر و توالی سفارشات پذیرفته‌شده
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      تمام مقصدهای پذیرفته‌شده امروز به ترتیب توقف روی نقشه متصل و مسیریابی شده‌اند
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono font-black bg-sky-100 text-sky-900 px-3 py-1.5 rounded-xl border border-sky-200">
+                    {toPersianDigits(myActiveRequests.length)} توقف فعال
+                  </span>
+                </div>
+              </div>
+
+              <DriverRouteMap
+                requests={myActiveRequests}
+                cityCenter={city.center}
+                title="مسیر حرکت سفیر (ایستگاه‌های پذیرفته‌شده)"
+                polylineColor="#0284c7"
+                heightClass="h-72 sm:h-96"
+              />
+            </div>
+          )}
+
           {myActiveRequests.length === 0 ? (
             <div className="bg-white p-10 rounded-3xl border border-slate-200 text-center text-xs text-slate-500">
               درحال حاضر سفارشی در مسیر فعال خود ندارید. از تب «برنامه هفتگی» سفارشات را بپذیرید.
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {myActiveRequests.map((req) => (
-                <div key={req.id} className="bg-white p-4 sm:p-5 rounded-2xl border-2 border-sky-300 shadow-xs space-y-3">
+                <div key={req.id} className="bg-white p-4 sm:p-5 rounded-3xl border-2 border-sky-300 shadow-xs space-y-3.5">
                   <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5 text-xs">
                     <div className="flex items-center gap-2">
                       <span className="font-mono font-black text-sky-900 bg-sky-100 px-2 py-0.5 rounded-lg">
@@ -628,7 +733,7 @@ export const DriverPanel: React.FC<DriverPanelProps> = ({
                       <span className="font-bold text-slate-900">{req.userName}</span>
                     </div>
 
-                    <span className="text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full animate-pulse">
+                    <span className="text-[11px] font-bold text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-full animate-pulse">
                       درحال مراجعه
                     </span>
                   </div>
@@ -641,6 +746,47 @@ export const DriverPanel: React.FC<DriverPanelProps> = ({
                         <strong>یادداشت شهروند:</strong> {req.address.notes}
                       </p>
                     )}
+                  </div>
+
+                  {/* Destination Map Card */}
+                  <div className="pt-1">
+                    <DriverMapCard
+                      lat={req.address.lat}
+                      lng={req.address.lng}
+                      userName={req.userName}
+                      street={req.address.street}
+                      cityName={city.name}
+                    />
+                  </div>
+
+                  {/* Single Navigation Action Button (Opens Popup with Neshan, Balad, Waze, Google Maps) */}
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setNavTarget({
+                        lat: req.address.lat,
+                        lng: req.address.lng,
+                        userName: req.userName,
+                        street: req.address.street,
+                        cityName: city.name
+                      })}
+                      className="w-full py-3 px-4 bg-gradient-to-r from-sky-600 via-teal-600 to-emerald-600 hover:from-sky-700 hover:to-emerald-700 text-white rounded-2xl font-black text-xs sm:text-sm flex items-center justify-between shadow-md hover:shadow-lg transition cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center group-hover:scale-110 transition">
+                          <Compass className="w-4 h-4 text-white" />
+                        </div>
+                        <div className="text-right">
+                          <div className="font-black text-white">مسیریابی با نرم‌افزارهای نقشه</div>
+                          <div className="text-[11px] text-sky-100 font-normal">انتخاب بین نشان، بلد، ویز و گوگل مپ</div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 bg-white/20 px-3 py-1.5 rounded-xl text-xs font-bold backdrop-blur-xs">
+                        <Navigation className="w-3.5 h-3.5" />
+                        <span>شروع مسیریابی</span>
+                      </div>
+                    </button>
                   </div>
 
                   {/* Actions Grid */}
@@ -1017,6 +1163,19 @@ export const DriverPanel: React.FC<DriverPanelProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Navigation Modal */}
+      {navTarget && (
+        <NavigationModal
+          isOpen={!!navTarget}
+          onClose={() => setNavTarget(null)}
+          lat={navTarget.lat}
+          lng={navTarget.lng}
+          userName={navTarget.userName}
+          street={navTarget.street}
+          cityName={navTarget.cityName}
+        />
       )}
     </div>
   );
