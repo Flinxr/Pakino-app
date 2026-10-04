@@ -72,7 +72,7 @@ export const WastePriceAccordion: React.FC<WastePriceAccordionProps> = ({
         <div className="p-4 sm:p-5 pt-0 border-t border-slate-100 space-y-2 animate-in fade-in duration-300">
           <p className="text-xs text-slate-600 mb-3 bg-emerald-50/60 p-3 rounded-xl border border-emerald-100 flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>تسویه آنی بر اساس توزین دیجیتال هنگام مراجعه سفیر پاکینو یا واریز مستقیم به کیف پول</span>
+            <span>تسویه آنی بر اساس توزین دیجیتال هنگام مراجعه سفیر پاکینو به صورت کارت‌به‌کارت آنی یا پرداخت نقدی در محل</span>
           </p>
 
           <div className="space-y-2">

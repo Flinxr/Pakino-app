@@ -28,17 +28,19 @@ export function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: nu
   return R * c;
 }
 
-// Check if a point is within the allowed municipal service boundaries
+import { checkInsideCityPolygon } from './polygonGeofence';
+
+// Check if a point is within the allowed municipal service boundaries (Polygon Geofence - Item 10)
 export function checkInsideCityBoundary(cityId: CityId, lat: number, lng: number): {
   isInside: boolean;
   distanceKm: number;
   maxRadiusKm: number;
 } {
+  const result = checkInsideCityPolygon(cityId, lat, lng);
   const city = CITIES[cityId] || CITIES.noorabad;
-  const dist = getDistanceKm(lat, lng, city.center.lat, city.center.lng);
   return {
-    isInside: dist <= city.maxRadiusKm,
-    distanceKm: dist,
+    isInside: result.isInside,
+    distanceKm: result.distanceToCenterKm,
     maxRadiusKm: city.maxRadiusKm
   };
 }

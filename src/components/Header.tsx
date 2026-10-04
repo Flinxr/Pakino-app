@@ -9,13 +9,13 @@ import {
   Phone,
   LogOut,
   Gift,
-  Wallet,
   CreditCard,
   X,
   CheckCircle2,
   ArrowUpRight,
   ShieldCheck,
-  ChevronLeft
+  ChevronLeft,
+  Headphones
 } from 'lucide-react';
 import { CityId, UserProfile } from '../types';
 import { CITIES } from '../data/cities';
@@ -30,7 +30,8 @@ interface HeaderProps {
   onOpenAuth: () => void;
   onOpenShare: () => void;
   onOpenLottery: () => void;
-  onOpenWallet: () => void;
+  onOpenFeedback?: () => void;
+  onOpenWallet?: () => void;
   onLogout: () => void;
   onGoHome?: () => void;
 }
@@ -44,6 +45,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAuth,
   onOpenShare,
   onOpenLottery,
+  onOpenFeedback,
   onOpenWallet,
   onLogout,
   onGoHome
@@ -88,47 +90,41 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
 
         {/* Compact Right Side Controls */}
-        <div className="flex items-center gap-1.5">
-          {/* Quick Wallet preview */}
-          {userRole === 'citizen' && (
-            <button
-              onClick={onOpenWallet}
-              className="hidden md:flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-900 px-3 py-1 rounded-xl text-xs font-black transition cursor-pointer"
-              title="کیف پول و موجودی"
-            >
-              <Wallet className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="font-mono text-emerald-800">
-                {toPersianDigits(user.walletBalanceTomans.toLocaleString())}
-              </span>
-              <span className="text-[10px] text-emerald-600 font-normal">تومان</span>
-            </button>
-          )}
-
-          {/* Unified Profile & Control Trigger Button */}
+        <div className="flex items-center gap-2">
+          {/* User Role Icon in Header */}
           <button
             id="user-profile-btn"
             onClick={() => setShowProfileMenu(true)}
-            className="flex items-center gap-1.5 sm:gap-2 bg-slate-100/90 hover:bg-slate-200/90 active:scale-95 border border-slate-200/90 px-2.5 sm:px-3 py-1.5 rounded-xl sm:rounded-2xl text-xs font-bold text-slate-800 transition cursor-pointer"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-slate-100 hover:bg-slate-200 active:scale-95 border border-slate-200 flex items-center justify-center transition cursor-pointer relative shadow-xs"
+            aria-label={
+              userRole === 'admin' 
+                ? 'پنل مدیریت سامانه' 
+                : userRole === 'driver' 
+                ? 'پنل راننده و سفیر پاکیار' 
+                : user.isRegistered 
+                ? `پروفایل شهروندی: ${user.firstName} ${user.lastName}` 
+                : 'ورود و حساب کاربری شهروند'
+            }
+            title={
+              userRole === 'admin' 
+                ? 'پنل مدیریت سامانه' 
+                : userRole === 'driver' 
+                ? 'پنل راننده و سفیر پاکیار' 
+                : user.isRegistered 
+                ? `پروفایل شهروندی: ${user.firstName} ${user.lastName}` 
+                : 'ورود و حساب کاربری شهروند'
+            }
           >
-            <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center font-black text-xs shrink-0 shadow-xs">
-              {userRole === 'admin' ? (
-                <ShieldCheck className="w-3.5 h-3.5" />
-              ) : user.isRegistered && user.firstName ? user.firstName[0] : (
-                <User className="w-3.5 h-3.5" />
-              )}
-            </div>
-            
-            <div className="flex flex-col text-right">
-              <div className="flex items-center gap-1">
-                <span className="text-xs font-extrabold text-slate-800">
-                  {userRole === 'admin' ? 'مدیریت سامانه' : user.isRegistered ? `${user.firstName} ${user.lastName}`.trim() : 'ورود / حساب'}
-                </span>
-                <ChevronDown className="w-3 h-3 text-slate-400 shrink-0" />
-              </div>
-              <div className="text-[9px] text-emerald-700 font-semibold leading-none mt-0.5">
-                {getRoleLabel()}
-              </div>
-            </div>
+            {userRole === 'admin' ? (
+              <ShieldCheck className="w-5 h-5 text-indigo-700" />
+            ) : userRole === 'driver' ? (
+              <Truck className="w-5 h-5 text-emerald-700" />
+            ) : (
+              <User className="w-5 h-5 text-slate-700" />
+            )}
+            <span className="sr-only">
+              {userRole === 'admin' ? 'مدیریت سامانه' : userRole === 'driver' ? 'راننده' : 'شهروند'}
+            </span>
           </button>
         </div>
       </div>
@@ -167,7 +163,7 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
 
             <div className="p-4 space-y-4 max-h-[75vh] overflow-y-auto">
-              {/* SECTION 1: City Selector */}
+              {/* SECTION 1: City Selector Dropdown (Item 15) */}
               <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-800">
@@ -175,27 +171,24 @@ export const Header: React.FC<HeaderProps> = ({
                     <span>انتخاب شهرستان و محدوده خدمات</span>
                   </div>
                   <span className="text-[10px] text-emerald-700 bg-emerald-100 font-bold px-1.5 py-0.5 rounded">
-                    فعال
+                    تحت پوشش
                   </span>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-2">
-                  {Object.values(CITIES).map((c) => (
-                    <button
-                      key={c.id}
-                      onClick={() => {
-                        onCityChange(c.id);
-                      }}
-                      className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border cursor-pointer ${
-                        currentCity === c.id
-                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                          : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
-                      }`}
-                    >
-                      <div className={`w-2 h-2 rounded-full ${currentCity === c.id ? 'bg-white' : 'bg-slate-400'}`} />
-                      <span>{c.name}</span>
-                    </button>
-                  ))}
+                <div className="relative">
+                  <select
+                    value={currentCity}
+                    onChange={(e) => onCityChange(e.target.value as CityId)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-xs cursor-pointer appearance-none text-right"
+                    aria-label="انتخاب شهرستان"
+                  >
+                    {Object.values(CITIES).map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.fullName}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
               </div>
 
@@ -253,32 +246,6 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
               </div>
 
-              {/* SECTION 3: Wallet & Direct Withdrawal */}
-              {userRole === 'citizen' && (
-                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/80 flex items-center justify-between">
-                  <div>
-                    <div className="text-[11px] text-slate-600 font-bold flex items-center gap-1">
-                      <Wallet className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>موجودی کیف پول شما:</span>
-                    </div>
-                    <div className="text-base font-black text-emerald-900 font-mono mt-0.5">
-                      {toPersianDigits(user.walletBalanceTomans.toLocaleString())} <span className="text-[10px] font-sans font-bold">تومان</span>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      setShowProfileMenu(false);
-                      onOpenWallet();
-                    }}
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
-                  >
-                    <CreditCard className="w-3.5 h-3.5" />
-                    <span>برداشت وجه</span>
-                  </button>
-                </div>
-              )}
-
               {/* SECTION 4: Menu Action Links */}
               <div className="space-y-1 pt-1 border-t border-slate-100">
                 <button
@@ -308,6 +275,22 @@ export const Header: React.FC<HeaderProps> = ({
                   </div>
                   <ChevronLeft className="w-4 h-4 text-slate-400" />
                 </button>
+
+                {onOpenFeedback && (
+                  <button
+                    onClick={() => {
+                      setShowProfileMenu(false);
+                      onOpenFeedback();
+                    }}
+                    className="w-full text-right p-2.5 rounded-xl text-xs text-slate-700 hover:bg-slate-100 flex items-center justify-between font-bold transition cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Headphones className="w-4 h-4 text-emerald-600" />
+                      <span>مرکز پشتیبانی و ثبت تیکت (صدای شهروند)</span>
+                    </div>
+                    <ChevronLeft className="w-4 h-4 text-slate-400" />
+                  </button>
+                )}
 
                 {!user.isRegistered ? (
                   <button

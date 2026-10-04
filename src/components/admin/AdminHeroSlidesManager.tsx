@@ -20,7 +20,13 @@ import {
   ShieldCheck,
   Coins,
   Truck,
-  RotateCcw
+  RotateCcw,
+  Image as ImageIcon,
+  ExternalLink,
+  Upload,
+  Link as LinkIcon,
+  Check,
+  AlertCircle
 } from 'lucide-react';
 import { HeroSlide, CityId } from '../../types';
 import { INITIAL_HERO_SLIDES } from '../../data/cities';
@@ -97,12 +103,49 @@ const GRADIENT_PRESETS = [
   }
 ];
 
+const PHOTO_PRESETS = [
+  {
+    id: 'minimal_banner',
+    label: 'طرح مینیمال با عکس بنر مستطیلی (طبیعت و بازیافت)',
+    imageUrl: 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=800&auto=format&fit=crop&q=80',
+    gradient: 'from-emerald-950 via-slate-900/90 to-teal-950/80',
+    tagColor: 'bg-emerald-500/30 text-emerald-100 border border-emerald-400/30',
+    aspectRatio: 'tall' as const
+  },
+  {
+    id: 'gold_gifts',
+    label: 'طرح بنر طلایی جوایز و جشن',
+    imageUrl: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?w=800&auto=format&fit=crop&q=80',
+    gradient: 'from-amber-950 via-slate-900/90 to-yellow-950/80',
+    tagColor: 'bg-amber-500/30 text-amber-100 border border-amber-400/30',
+    aspectRatio: 'square' as const
+  },
+  {
+    id: 'forest_zagros',
+    label: 'طرح جنگل بلوط زاگرس و مسئولیت اجتماعی',
+    imageUrl: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=800&auto=format&fit=crop&q=80',
+    gradient: 'from-teal-950 via-slate-900/90 to-emerald-950/80',
+    tagColor: 'bg-teal-500/30 text-teal-100 border border-teal-400/30',
+    aspectRatio: 'tall' as const
+  },
+  {
+    id: 'clean_city',
+    label: 'طرح شهر پاک و آسمان آبی نورآباد و کازرون',
+    imageUrl: 'https://images.unsplash.com/photo-1477959858617-67f30bc75b82?w=800&auto=format&fit=crop&q=80',
+    gradient: 'from-blue-950 via-slate-900/90 to-indigo-950/80',
+    tagColor: 'bg-blue-500/30 text-blue-100 border border-blue-400/30',
+    aspectRatio: 'banner' as const
+  }
+];
+
 const ACTION_TARGETS = [
-  { id: 'pickup', label: 'باز کردن فرم ثبت سفارش جمع‌آوری' },
-  { id: 'lottery', label: 'انتقال به بخش گردونه و قرعه‌کشی' },
-  { id: 'wallet', label: 'باز کردن کیف پول و موجودی' },
-  { id: 'share', label: 'باز کردن پنجره دعوت از دوستان' },
-  { id: 'feedback', label: 'ثبت نظر و پیام به مدیریت' }
+  { id: 'pickup', label: 'ثبت درخواست جمع‌آوری پسماند در محل' },
+  { id: 'lottery', label: 'انتقال به بخش گردونه و قرعه‌کشی جوایز' },
+  { id: 'custom_url', label: '🔗 لینک اختصاصی و ریدایرکت وب‌سایت (Custom URL)' },
+  { id: 'wallet', label: 'کیف پول و تسویه حساب' },
+  { id: 'charity', label: 'پروژه‌های مسئولیت اجتماعی و نیکوکاری' },
+  { id: 'share', label: 'دعوت از همشهریان و دریافت امتیاز' },
+  { id: 'feedback', label: 'ثبت انتقادات، پیشنهادات و تیکت پشتیبانی' }
 ];
 
 export const AdminHeroSlidesManager: React.FC<AdminHeroSlidesManagerProps> = ({
@@ -112,6 +155,7 @@ export const AdminHeroSlidesManager: React.FC<AdminHeroSlidesManagerProps> = ({
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSlide, setEditingSlide] = useState<HeroSlide | null>(null);
+  const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
 
   // Form State
   const [formTag, setFormTag] = useState('');
@@ -124,11 +168,22 @@ export const AdminHeroSlidesManager: React.FC<AdminHeroSlidesManagerProps> = ({
   const [formActionText, setFormActionText] = useState('ثبت فوری جمع‌آوری');
   const [formActionType, setFormActionType] = useState<HeroSlide['actionType']>('pickup');
   const [formIsActive, setFormIsActive] = useState(true);
+  
+  // Item 4: Image, Link & Aspect Ratio
+  const [formImageUrl, setFormImageUrl] = useState('');
+  const [formLinkUrl, setFormLinkUrl] = useState('');
+  const [formLinkLabel, setFormLinkLabel] = useState('');
+  const [formAspectRatio, setFormAspectRatio] = useState<'tall' | 'square' | 'banner' | 'wide'>('tall');
+
+  const showNotice = (msg: string) => {
+    setFeedbackNotice(msg);
+    setTimeout(() => setFeedbackNotice(null), 3000);
+  };
 
   // Open Create Modal
   const handleOpenCreate = () => {
     setEditingSlide(null);
-    setFormTag('جشنواره ویژه نوروز و بهار پاکیاران');
+    setFormTag('جشنواره ویژه بهار پاکیاران');
     setFormTitle('طرح تفکیک بهاره با جوایز ۲ برابر نقدی');
     setFormSubtitle('با هر بار تحویل پسماند خشک در این ماه، دو برابر امتیاز شانس طلایی دریافت کنید.');
     setFormHighlightText('اعزام سریع ناوگان در تمام مناطق شهر');
@@ -137,6 +192,10 @@ export const AdminHeroSlidesManager: React.FC<AdminHeroSlidesManagerProps> = ({
     setFormIconName('Sparkles');
     setFormActionText('ثبت سفارش جمع‌آوری');
     setFormActionType('pickup');
+    setFormImageUrl(PHOTO_PRESETS[0].imageUrl);
+    setFormLinkUrl('https://pakino.ir/guide');
+    setFormLinkLabel('راهنمای تفکیک');
+    setFormAspectRatio('tall');
     setFormIsActive(true);
     setIsModalOpen(true);
   };
@@ -144,17 +203,44 @@ export const AdminHeroSlidesManager: React.FC<AdminHeroSlidesManagerProps> = ({
   // Open Edit Modal
   const handleOpenEdit = (slide: HeroSlide) => {
     setEditingSlide(slide);
-    setFormTag(slide.tag);
-    setFormTitle(slide.title);
-    setFormSubtitle(slide.subtitle);
-    setFormHighlightText(slide.highlightText);
-    setFormGradient(slide.bgGradient);
+    setFormTag(slide.tag || '');
+    setFormTitle(slide.title || '');
+    setFormSubtitle(slide.subtitle || '');
+    setFormHighlightText(slide.highlightText || '');
+    setFormGradient(slide.bgGradient || GRADIENT_PRESETS[0].gradient);
     setFormTagColor(slide.tagColor || GRADIENT_PRESETS[0].tagColor);
     setFormIconName(slide.iconName || 'Recycle');
     setFormActionText(slide.actionText || 'ثبت فوری جمع‌آوری');
     setFormActionType(slide.actionType || 'pickup');
+    setFormImageUrl(slide.imageUrl || '');
+    setFormLinkUrl(slide.linkUrl || '');
+    setFormLinkLabel(slide.linkLabel || '');
+    setFormAspectRatio(slide.aspectRatio || 'tall');
     setFormIsActive(slide.isActive ?? true);
     setIsModalOpen(true);
+  };
+
+  // Apply Photo Preset
+  const handleApplyPhotoPreset = (preset: typeof PHOTO_PRESETS[0]) => {
+    setFormImageUrl(preset.imageUrl);
+    setFormGradient(preset.gradient);
+    setFormTagColor(preset.tagColor);
+    setFormAspectRatio(preset.aspectRatio);
+  };
+
+  // Handle local image file upload (Base64)
+  const handleImageFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setFormImageUrl(reader.result);
+        showNotice('تصویر انتخابی با موفقیت در اسلاید بارگذاری گردید.');
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   // Save Slide
@@ -174,11 +260,16 @@ export const AdminHeroSlidesManager: React.FC<AdminHeroSlidesManagerProps> = ({
               iconName: formIconName,
               actionText: formActionText,
               actionType: formActionType,
+              imageUrl: formImageUrl || undefined,
+              linkUrl: formLinkUrl || undefined,
+              linkLabel: formLinkLabel || undefined,
+              aspectRatio: formAspectRatio,
               isActive: formIsActive
             }
           : s
       );
       onUpdateSlides(updated);
+      showNotice('اسلاید با موفقیت ویرایش شد.');
     } else {
       const newSlide: HeroSlide = {
         id: `slide-${Date.now().toString().slice(-4)}`,
@@ -191,10 +282,15 @@ export const AdminHeroSlidesManager: React.FC<AdminHeroSlidesManagerProps> = ({
         iconName: formIconName,
         actionText: formActionText,
         actionType: formActionType,
+        imageUrl: formImageUrl || undefined,
+        linkUrl: formLinkUrl || undefined,
+        linkLabel: formLinkLabel || undefined,
+        aspectRatio: formAspectRatio,
         isActive: formIsActive,
         order: slides.length + 1
       };
       onUpdateSlides([...slides, newSlide]);
+      showNotice('اسلاید جدید با موفقیت اضافه گردید.');
     }
     setIsModalOpen(false);
   };
@@ -202,12 +298,11 @@ export const AdminHeroSlidesManager: React.FC<AdminHeroSlidesManagerProps> = ({
   // Delete Slide
   const handleDeleteSlide = (id: string) => {
     if (slides.length <= 1) {
-      alert('حداقل وجود یک اسلاید برای صفحه اصلی ضروری است.');
+      showNotice('حداقل وجود یک اسلاید برای صفحه اصلی ضروری است.');
       return;
     }
-    if (confirm('آیا از حذف این اسلاید اطمینان دارید؟')) {
-      onUpdateSlides(slides.filter((s) => s.id !== id));
-    }
+    onUpdateSlides(slides.filter((s) => s.id !== id));
+    showNotice('اسلاید با موفقیت حذف شد.');
   };
 
   // Toggle Active
@@ -231,9 +326,8 @@ export const AdminHeroSlidesManager: React.FC<AdminHeroSlidesManagerProps> = ({
 
   // Reset to Defaults
   const handleResetDefaults = () => {
-    if (confirm('آیا مایلید اسلایدهای صفحه اصلی به حالت پیش‌فرض بازگردانی شوند؟')) {
-      onUpdateSlides(INITIAL_HERO_SLIDES);
-    }
+    onUpdateSlides(INITIAL_HERO_SLIDES);
+    showNotice('اسلایدهای صفحه اصلی به تنظیمات اولیه بازنشانی شدند.');
   };
 
   const getIconComponent = (iconName: string) => {
@@ -243,6 +337,17 @@ export const AdminHeroSlidesManager: React.FC<AdminHeroSlidesManagerProps> = ({
 
   return (
     <div className="space-y-4 sm:space-y-5 animate-in fade-in">
+      {/* Toast Notice */}
+      {feedbackNotice && (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-2xl text-xs font-black flex items-center justify-between shadow-xs animate-in slide-in-from-top-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <span>{feedbackNotice}</span>
+          </div>
+          <button onClick={() => setFeedbackNotice(null)} className="text-slate-400 hover:text-slate-700">✕</button>
+        </div>
+      )}
+
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs">
         <div className="flex items-center gap-3">
@@ -252,14 +357,14 @@ export const AdminHeroSlidesManager: React.FC<AdminHeroSlidesManagerProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h3 className="font-black text-sm sm:text-base text-slate-900">
-                مدیریت اسلایدها و بنرهای اسلایدر صفحه اصلی شهروند
+                مدیریت اسلایدها و بنرهای اسلایدر صفحه اصلی (ماده ۴)
               </h3>
               <span className="text-[10px] bg-teal-100 text-teal-800 font-black px-2 py-0.5 rounded-full">
-                شخصی‌سازی زنده
+                بارگذاری تصویر و لینک مستقیم
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              افزودن و حذف اسلایدها، تغییر تم رنگی و پس‌زمینه گرادیانت، ویرایش متن‌ها و دکمه‌های اقدام شهروند
+              افزودن عکس بنر، تنظیم نسبت عمودی/مربعی، افزودن لینک اختصاصی و انتخاب طرح‌های آماده مینیمال
             </p>
           </div>
         </div>
@@ -289,6 +394,7 @@ export const AdminHeroSlidesManager: React.FC<AdminHeroSlidesManagerProps> = ({
       <div className="space-y-3.5">
         {slides.map((slide, index) => {
           const IconComp = getIconComponent(slide.iconName);
+          const isTall = slide.aspectRatio === 'tall' || slide.aspectRatio === 'square';
           return (
             <div
               key={slide.id}
@@ -305,9 +411,21 @@ export const AdminHeroSlidesManager: React.FC<AdminHeroSlidesManagerProps> = ({
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${slide.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'}`}>
                         {slide.isActive ? 'فعال در اپ' : 'غیرفعال'}
                       </span>
+                      {slide.imageUrl && (
+                        <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <ImageIcon className="w-3 h-3" />
+                          <span>دارای تصویر</span>
+                        </span>
+                      )}
+                      {slide.linkUrl && (
+                        <span className="text-[10px] bg-indigo-100 text-indigo-800 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <ExternalLink className="w-3 h-3" />
+                          <span>لینک‌دار</span>
+                        </span>
+                      )}
                     </div>
                     <span className="text-[11px] text-slate-500 block mt-0.5">
-                      برچسب: {slide.tag} • دکمه: {slide.actionText || 'بدون دکمه'}
+                      برچسب: {slide.tag} • دکمه: {slide.actionText || 'بدون دکمه'} • نسبت: {isTall ? 'عمودی/مربعی' : 'عریض'}
                     </span>
                   </div>
                 </div>
@@ -361,15 +479,19 @@ export const AdminHeroSlidesManager: React.FC<AdminHeroSlidesManagerProps> = ({
               </div>
 
               {/* Real Mobile Slide Preview Render */}
-              <div className="rounded-2xl overflow-hidden border border-slate-200/80 shadow-xs">
-                <div className={`p-4 sm:p-5 bg-gradient-to-r ${slide.bgGradient} text-white relative overflow-hidden`}>
-                  {/* Decorative ambient lights */}
-                  <div className="absolute -left-10 -bottom-10 w-40 h-40 rounded-full bg-white/10 blur-2xl pointer-events-none" />
-                  
-                  <div className="relative z-10 space-y-2.5">
+              <div className="rounded-2xl overflow-hidden border border-slate-200/80 shadow-xs relative">
+                {slide.imageUrl && (
+                  <div className="absolute inset-0 z-0">
+                    <img src={slide.imageUrl} alt={slide.title} className="w-full h-full object-cover" />
+                    <div className={`absolute inset-0 bg-gradient-to-t ${slide.bgGradient || 'from-slate-950 via-slate-900/85 to-slate-950/70'} opacity-90`} />
+                  </div>
+                )}
+                
+                <div className={`p-4 sm:p-5 ${!slide.imageUrl ? `bg-gradient-to-r ${slide.bgGradient}` : ''} text-white relative z-10 overflow-hidden`}>
+                  <div className="space-y-2.5">
                     <div className="flex items-center justify-between gap-2">
                       <span className={`inline-flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1 rounded-full ${slide.tagColor || 'bg-white/20 text-white'}`}>
-                        <Sparkles className="w-3 h-3" />
+                        <Sparkles className="w-3 h-3 text-amber-300" />
                         <span>{slide.tag}</span>
                       </span>
 
@@ -382,14 +504,22 @@ export const AdminHeroSlidesManager: React.FC<AdminHeroSlidesManagerProps> = ({
                       {slide.title}
                     </h4>
 
-                    <p className="text-xs text-slate-100/90 leading-relaxed">
+                    <p className="text-xs text-slate-100/90 leading-relaxed line-clamp-2">
                       {slide.subtitle}
                     </p>
 
-                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/15">
-                      <span className="text-[11px] text-emerald-200 font-bold">
-                        {slide.highlightText}
-                      </span>
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/15 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-emerald-200 font-bold">
+                          {slide.highlightText}
+                        </span>
+                        {slide.linkUrl && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-black/40 text-indigo-200 text-[10px] font-mono font-bold">
+                            <ExternalLink className="w-3 h-3" />
+                            <span>{slide.linkLabel || 'لینک فعال'}</span>
+                          </span>
+                        )}
+                      </div>
                       {slide.actionText && (
                         <span className="px-3 py-1 bg-white text-slate-900 font-black text-xs rounded-xl shadow-xs">
                           {slide.actionText}
@@ -412,7 +542,7 @@ export const AdminHeroSlidesManager: React.FC<AdminHeroSlidesManagerProps> = ({
               <div className="flex items-center gap-2">
                 <Palette className="w-5 h-5 text-teal-600" />
                 <h3 className="font-black text-sm text-slate-900">
-                  {editingSlide ? 'ویرایش اسلاید و تغییر رنگ پس‌زمینه' : 'افزودن اسلاید و بنر جدید'}
+                  {editingSlide ? 'ویرایش اسلاید، تصویر و لینک' : 'افزودن اسلاید و بنر جدید (ماده ۴)'}
                 </h3>
               </div>
               <button
@@ -424,17 +554,47 @@ export const AdminHeroSlidesManager: React.FC<AdminHeroSlidesManagerProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleSaveSlide} className="space-y-3.5">
+            <form onSubmit={handleSaveSlide} className="space-y-4">
+              {/* SECTION: PHOTO PRESETS SELECTOR */}
+              <div className="bg-teal-50/60 p-3.5 rounded-2xl border border-teal-200 space-y-2">
+                <label className="block text-xs font-black text-teal-950">
+                  ⚡ انتخاب طرح‌های آماده مینیمال و شیک با عکس بنر (Presets):
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {PHOTO_PRESETS.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => handleApplyPhotoPreset(p)}
+                      className={`p-2 rounded-xl border text-right transition flex items-center gap-2 cursor-pointer ${
+                        formImageUrl === p.imageUrl
+                          ? 'border-teal-600 bg-white shadow-xs ring-2 ring-teal-500/20'
+                          : 'border-slate-200 bg-white/80 hover:bg-white'
+                      }`}
+                    >
+                      <img src={p.imageUrl} alt={p.label} className="w-9 h-9 rounded-lg object-cover shrink-0" />
+                      <span className="text-[11px] font-bold text-slate-800 line-clamp-1">{p.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Live Preview Inside Modal */}
               <div>
                 <label className="block text-xs font-black text-slate-700 mb-1.5">
                   پیش‌نمایش زنده ظاهر اسلاید:
                 </label>
-                <div className={`p-4 rounded-2xl bg-gradient-to-r ${formGradient} text-white relative overflow-hidden shadow-inner`}>
+                <div className={`p-4 rounded-2xl ${!formImageUrl ? `bg-gradient-to-r ${formGradient}` : ''} text-white relative overflow-hidden shadow-inner`}>
+                  {formImageUrl && (
+                    <div className="absolute inset-0 z-0">
+                      <img src={formImageUrl} alt="preview" className="w-full h-full object-cover" />
+                      <div className={`absolute inset-0 bg-gradient-to-t ${formGradient} opacity-90`} />
+                    </div>
+                  )}
                   <div className="relative z-10 space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <span className={`inline-flex items-center gap-1.5 text-[10px] font-black px-2.5 py-0.5 rounded-full ${formTagColor}`}>
-                        <Sparkles className="w-3 h-3" />
+                        <Sparkles className="w-3 h-3 text-amber-300" />
                         <span>{formTag || 'برچسب عنوان'}</span>
                       </span>
                     </div>
@@ -445,7 +605,15 @@ export const AdminHeroSlidesManager: React.FC<AdminHeroSlidesManagerProps> = ({
                       {formSubtitle || 'توضیحات فرعی و راهنمای شهروند'}
                     </div>
                     <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/20 text-xs">
-                      <span className="text-[11px] text-emerald-200 font-bold">{formHighlightText || 'نکته برجسته'}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-emerald-200 font-bold">{formHighlightText || 'نکته برجسته'}</span>
+                        {formLinkUrl && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-black/40 text-indigo-200 text-[9px] font-bold">
+                            <ExternalLink className="w-2.5 h-2.5" />
+                            <span>{formLinkLabel || 'لینک فعال'}</span>
+                          </span>
+                        )}
+                      </div>
                       <span className="px-3 py-1 bg-white text-slate-900 font-black text-[11px] rounded-xl">
                         {formActionText || 'دکمه اقدام'}
                       </span>
@@ -454,10 +622,87 @@ export const AdminHeroSlidesManager: React.FC<AdminHeroSlidesManagerProps> = ({
                 </div>
               </div>
 
+              {/* IMAGE UPLOAD & URL SECTION (Item 4) */}
+              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                    <ImageIcon className="w-4 h-4 text-teal-600" />
+                    <span>تصویر و عکس بنر اسلاید (Image Upload & URL):</span>
+                  </label>
+                  {formImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setFormImageUrl('')}
+                      className="text-[11px] text-rose-600 font-bold hover:underline"
+                    >
+                      حذف تصویر (فقط گرادیانت)
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 block mb-1">
+                      آدرس اینترنتی عکس (Image URL):
+                    </label>
+                    <input
+                      type="url"
+                      value={formImageUrl}
+                      onChange={(e) => setFormImageUrl(e.target.value)}
+                      placeholder="https://images.unsplash.com/..."
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-left focus:bg-white focus:border-teal-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 block mb-1">
+                      یا بارگذاری فایل عکس از حافظه دستگاه:
+                    </label>
+                    <label className="w-full py-2 px-3 bg-white hover:bg-slate-100 border border-dashed border-teal-400 rounded-xl text-xs font-bold text-teal-800 flex items-center justify-center gap-1.5 cursor-pointer transition">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>انتخاب فایل عکس بنر</span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={handleImageFileUpload} 
+                        className="hidden" 
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {/* Aspect Ratio Selector (Item 4: ارتفاع بیشتر و نسبت تقریباً مربعی یا عمودی) */}
+                <div className="pt-1">
+                  <label className="block text-[11px] font-black text-slate-700 mb-1">
+                    ابعاد و نسبت اسلایدر (Aspect Ratio):
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'tall', label: 'عمودی / ارتفاع بلند (پیشنهادی)' },
+                      { id: 'square', label: 'مربعی شیک' },
+                      { id: 'banner', label: 'مستطیلی عریض' }
+                    ].map((ar) => (
+                      <button
+                        key={ar.id}
+                        type="button"
+                        onClick={() => setFormAspectRatio(ar.id as any)}
+                        className={`py-1.5 px-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                          formAspectRatio === ar.id
+                            ? 'bg-teal-600 text-white border-teal-600'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        {ar.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
               {/* Background Gradient Palette Picker */}
               <div>
                 <label className="block text-xs font-black text-slate-800 mb-1.5">
-                  انتخاب تم رنگی و پس‌زمینه اسلاید:
+                  انتخاب تم رنگی و گرادیانت لایه زیرین:
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {GRADIENT_PRESETS.map((preset) => {
@@ -470,7 +715,7 @@ export const AdminHeroSlidesManager: React.FC<AdminHeroSlidesManagerProps> = ({
                           setFormGradient(preset.gradient);
                           setFormTagColor(preset.tagColor);
                         }}
-                        className={`p-2.5 rounded-xl border text-right transition flex items-center gap-2 cursor-pointer ${
+                        className={`p-2 rounded-xl border text-right transition flex items-center gap-2 cursor-pointer ${
                           isSelected
                             ? 'border-teal-600 bg-teal-50 ring-2 ring-teal-500/20'
                             : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
@@ -572,7 +817,7 @@ export const AdminHeroSlidesManager: React.FC<AdminHeroSlidesManagerProps> = ({
                     type="text"
                     value={formActionText}
                     onChange={(e) => setFormActionText(e.target.value)}
-                    placeholder="مثال: ثبت فوری جمع‌آوری"
+                    placeholder="مثال: ثبت فوری جمع‌آوری / مشاهده سایت"
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold focus:bg-white"
                   />
                 </div>
@@ -592,6 +837,27 @@ export const AdminHeroSlidesManager: React.FC<AdminHeroSlidesManagerProps> = ({
                   </select>
                 </div>
               </div>
+
+              {/* Custom Redirect URL if custom_url action selected */}
+              {formActionType === 'custom_url' && (
+                <div className="bg-indigo-50/80 p-3.5 rounded-2xl border border-indigo-200 animate-in fade-in space-y-1.5">
+                  <label className="text-xs font-black text-indigo-950 flex items-center gap-1.5">
+                    <LinkIcon className="w-4 h-4 text-indigo-600" />
+                    <span>آدرس اینترنتی یا ریدایرکت اختصاصی دکمه (Custom URL):</span>
+                  </label>
+                  <input
+                    type="url"
+                    value={formLinkUrl}
+                    onChange={(e) => setFormLinkUrl(e.target.value)}
+                    placeholder="https://example.com/festival یا /lottery"
+                    className="w-full px-3.5 py-2.5 bg-white border border-indigo-300 rounded-xl text-xs font-mono text-left focus:ring-2 focus:ring-indigo-500/30"
+                    required
+                  />
+                  <p className="text-[10px] text-indigo-700">
+                    با کلیک شهروند روی دکمه اصلی این اسلاید، کاربر بلافاصله به آدرس مشخص‌شده فوق هدایت می‌شود.
+                  </p>
+                </div>
+              )}
 
               {/* Active Toggle */}
               <div className="flex items-center gap-2 pt-1">

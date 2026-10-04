@@ -12,7 +12,11 @@ import {
   CheckCircle2,
   AlertTriangle,
   AlertCircle,
-  ArrowLeft
+  ArrowLeft,
+  Headphones,
+  MessageSquare,
+  PhoneCall,
+  Send
 } from 'lucide-react';
 import { CityId, UserProfile, PickupRequest, CharityProject, HeroSlide, WasteCategory } from '../types';
 import { CITIES, FAQ_ITEMS } from '../data/cities';
@@ -20,6 +24,7 @@ import { toPersianDigits, formatTomans } from '../utils/persian';
 import { HeroCarousel } from './HeroCarousel';
 import { WastePriceAccordion } from './WastePriceAccordion';
 import { CharityProjectsSection } from './CharityProjectsSection';
+import { CitizenPollWidget } from './CitizenPollWidget';
 
 interface CitizenHomeProps {
   currentCity: CityId;
@@ -32,7 +37,7 @@ interface CitizenHomeProps {
   onOpenNewPickup: () => void;
   onOpenHistory: () => void;
   onOpenLottery: () => void;
-  onOpenWallet: () => void;
+  onOpenWallet?: () => void;
   onOpenFeedback: () => void;
   onOpenShare: () => void;
   onSelectCharityProject?: (projectId: string) => void;
@@ -201,35 +206,31 @@ export const CitizenHome: React.FC<CitizenHomeProps> = ({
 
         {isCityAccordionOpen && (
           <div className="p-4 sm:p-5 pt-0 border-t border-slate-100 space-y-3 animate-in fade-in">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {Object.values(CITIES).map((c) => {
-                const isSelected = c.id === currentCity;
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => {
-                      onSelectCity(c.id);
-                      setIsCityAccordionOpen(false);
-                    }}
-                    className={`p-3.5 rounded-2xl border text-right transition flex items-center justify-between cursor-pointer ${
-                      isSelected
-                        ? 'bg-emerald-50 border-emerald-500 text-emerald-950 font-bold shadow-2xs'
-                        : 'bg-slate-50/70 border-slate-200 hover:bg-white text-slate-700'
-                    }`}
-                  >
-                    <div>
-                      <div className="font-black text-xs sm:text-sm">{c.fullName}</div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">
-                        {toPersianDigits(c.neighborhoods.length)} محله تحت پوشش فعال
-                      </div>
-                    </div>
-                    {isSelected && (
-                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                    )}
-                  </button>
-                );
-              })}
+            <div className="space-y-1.5">
+              <label htmlFor="citizen-city-select" className="block text-xs font-bold text-slate-700">
+                انتخاب شهرستان تحت پوشش:
+              </label>
+              <div className="relative">
+                <select
+                  id="citizen-city-select"
+                  value={currentCity}
+                  onChange={(e) => {
+                    onSelectCity(e.target.value as CityId);
+                    setIsCityAccordionOpen(false);
+                  }}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-xs sm:text-sm font-black text-slate-900 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-xs cursor-pointer appearance-none text-right"
+                >
+                  {Object.values(CITIES).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.fullName} ({toPersianDigits(c.neighborhoods.length)} محله فعال)
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+              <p className="text-[11px] text-slate-500 pt-1">
+                خدمات جمع‌آوری هوشمند تفکیک پسماند پاکینو هم‌اکنون به طور رسمی در شهرستان‌های <strong>نورآباد ممسنی</strong> و <strong>کازرون</strong> فعال است.
+              </p>
             </div>
           </div>
         )}
@@ -267,39 +268,52 @@ export const CitizenHome: React.FC<CitizenHomeProps> = ({
         </button>
       </div>
 
-      {/* 7. FAQ ACCORDION */}
-      <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-200 shadow-2xs space-y-3">
-        <div className="flex items-center gap-2 mb-2">
-          <HelpCircle className="w-5 h-5 text-emerald-600" />
-          <h3 className="text-xs sm:text-sm font-black text-slate-900">
-            پرسش‌های متداول شهروندان
-          </h3>
-        </div>
+      {/* 7. CITIZEN POLL WIDGET (Item 13) */}
+      <CitizenPollWidget currentCity={currentCity} onOpenFeedbackModal={onOpenFeedback} />
 
-        <div className="space-y-2">
-          {FAQ_ITEMS.map((item, index) => {
-            const isOpen = openFaqIndex === index;
-            return (
-              <div
-                key={index}
-                className="rounded-2xl border border-slate-200/80 overflow-hidden bg-slate-50/50"
-              >
-                <button
-                  type="button"
-                  onClick={() => toggleFaq(index)}
-                  className="w-full p-3.5 text-right font-black text-xs text-slate-800 flex items-center justify-between gap-2 hover:bg-slate-100/70 transition cursor-pointer"
-                >
-                  <span>{item.q}</span>
-                  {isOpen ? <ChevronUp className="w-4 h-4 text-emerald-600 shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />}
-                </button>
-                {isOpen && (
-                  <div className="p-3.5 pt-0 text-xs text-slate-600 leading-relaxed border-t border-slate-100 bg-white animate-in fade-in">
-                    {item.a}
-                  </div>
-                )}
+      {/* 8. CITIZEN SUPPORT & TICKET CENTER (مرکز پشتیبانی، ثبت تیکت و صدای شهروند) */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 text-white p-4 sm:p-5 rounded-3xl shadow-lg border border-slate-700 relative overflow-hidden">
+        <div className="absolute -left-10 -bottom-10 w-40 h-40 rounded-full bg-emerald-500/10 blur-2xl pointer-events-none" />
+        
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0 shadow-inner">
+              <Headphones className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm sm:text-base font-black text-white">
+                  مرکز پشتیبانی و ثبت تیکت شهروندی
+                </h3>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  پاسخ‌گویی سریع
+                </span>
               </div>
-            );
-          })}
+              <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                هرگونه انتقاد، پیشنهاد، شکایت از سفیر یا سوال درباره جوایز و تسویه را مستقیماً برای مدیریت ارسال نمایید.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-stretch sm:self-auto shrink-0">
+            <button
+              type="button"
+              onClick={onOpenFeedback}
+              className="flex-1 sm:flex-none px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span>پشتیبانی و سوالات متداول</span>
+            </button>
+
+            <a
+              href={`tel:${city.supportPhone || '07142520000'}`}
+              className="px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 border border-white/15 cursor-pointer"
+              title="تماس تلفنی با پشتیبانی"
+            >
+              <PhoneCall className="w-4 h-4 text-emerald-300" />
+              <span className="hidden sm:inline">تماس: {toPersianDigits(city.supportPhone || '۰۷۱-۴۲۵۲۰۰۰۰')}</span>
+            </a>
+          </div>
         </div>
       </div>
 

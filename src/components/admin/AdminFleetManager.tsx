@@ -20,15 +20,21 @@ import {
   Navigation,
   Sparkles,
   Search,
-  ExternalLink
+  ExternalLink,
+  Table,
+  LayoutGrid,
+  ArrowUpDown,
+  SlidersHorizontal,
+  Filter
 } from 'lucide-react';
-import { DriverProfile, DriverActivityLog, CityId } from '../../types';
+import { DriverProfile, DriverActivityLog, CityId, PickupRequest } from '../../types';
 import { CITIES } from '../../data/cities';
 import { toPersianDigits, formatTomans } from '../../utils/persian';
 
 interface AdminFleetManagerProps {
   currentCity: CityId;
   drivers: DriverProfile[];
+  requests?: PickupRequest[];
   onUpdateDrivers: (drivers: DriverProfile[]) => void;
 }
 
@@ -44,12 +50,31 @@ const AVATAR_PRESETS = [
 export const AdminFleetManager: React.FC<AdminFleetManagerProps> = ({
   currentCity,
   drivers = [],
+  requests = [],
   onUpdateDrivers
 }) => {
+  const [viewMode, setViewMode] = useState<'cards_detail' | 'stats_table'>('cards_detail');
   const [selectedDriver, setSelectedDriver] = useState<DriverProfile | null>(drivers?.[0] || null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isNewDriverModalOpen, setIsNewDriverModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Table filtering and sorting states
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'warning' | 'suspended'>('all');
+  const [cityFilter, setCityFilter] = useState<string>('all');
+  const [onlineFilter, setOnlineFilter] = useState<'all' | 'online' | 'offline'>('all');
+  const [sortBy, setSortBy] = useState<'completed' | 'weight' | 'rating' | 'name'>('completed');
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+
+  // Overall Fleet Stats
+  const totalFleetCount = drivers.length;
+  const activeFleetCount = drivers.filter(d => d.status === 'active').length;
+  const onlineFleetCount = drivers.filter(d => d.isOnline).length;
+  const totalFleetKg = drivers.reduce((sum, d) => sum + (d.totalCollectedKg || 0), 0);
+  const totalFleetPickups = drivers.reduce((sum, d) => sum + (d.totalCompletedPickups || 0), 0);
+  const avgFleetRating = drivers.length > 0 
+    ? (drivers.reduce((sum, d) => sum + (d.rating || 5), 0) / drivers.length).toFixed(1)
+    : '5.0';
 
   // Edit / Add Form State
   const [formData, setFormData] = useState<Partial<DriverProfile>>({
@@ -73,13 +98,44 @@ export const AdminFleetManager: React.FC<AdminFleetManagerProps> = ({
   const [newLogKg, setNewLogKg] = useState(15);
   const [newLogType, setNewLogType] = useState<'charity' | 'cash'>('charity');
 
-  const filteredDrivers = drivers.filter(
+  const filteredDrivers = (drivers || []).filter(
     (d) =>
-      d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      d.phone.includes(searchQuery) ||
-      d.nationalId.includes(searchQuery) ||
+      (d.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (d.phone || '').includes(searchQuery) ||
+      (d.nationalId || '').includes(searchQuery) ||
       (CITIES[d.cityId]?.name || '').includes(searchQuery)
   );
+
+  // Table Filtered & Sorted Drivers
+  const tableFilteredDrivers = (drivers || []).filter((d) => {
+    // City
+    if (cityFilter !== 'all' && d.cityId !== cityFilter) return false;
+    // Status
+    if (statusFilter !== 'all' && d.status !== statusFilter) return false;
+    // Online
+    if (onlineFilter === 'online' && !d.isOnline) return false;
+    if (onlineFilter === 'offline' && d.isOnline) return false;
+    // Search
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const match =
+        (d.name || '').toLowerCase().includes(q) ||
+        (d.phone || '').includes(q) ||
+        (d.nationalId || '').includes(q) ||
+        (d.plateNumber || '').includes(q) ||
+        (d.vehicleType || '').toLowerCase().includes(q) ||
+        (CITIES[d.cityId]?.name || '').includes(q);
+      if (!match) return false;
+    }
+    return true;
+  }).sort((a, b) => {
+    let diff = 0;
+    if (sortBy === 'completed') diff = (a.totalCompletedPickups || 0) - (b.totalCompletedPickups || 0);
+    else if (sortBy === 'weight') diff = (a.totalCollectedKg || 0) - (b.totalCollectedKg || 0);
+    else if (sortBy === 'rating') diff = (a.rating || 0) - (b.rating || 0);
+    else if (sortBy === 'name') diff = a.name.localeCompare(b.name, 'fa');
+    return sortOrder === 'desc' ? -diff : diff;
+  });
 
   const handleOpenEdit = (driver: DriverProfile, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -257,14 +313,44 @@ export const AdminFleetManager: React.FC<AdminFleetManagerProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          {/* View Mode Switcher */}
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-0.5 border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setViewMode('cards_detail')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'cards_detail'
+                  ? 'bg-white text-emerald-800 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="نمای کارتی و پرونده فردی"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">پرونده و لاگ روایی</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('stats_table')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'stats_table'
+                  ? 'bg-white text-emerald-800 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="جدول جامع آمار و ارزیابی عملکرد ناوگان"
+            >
+              <Table className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">جدول آمار عملکرد</span>
+            </button>
+          </div>
+
           <div className="relative">
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="جستجوی نام، کدملی یا شهر..."
-              className="px-3 py-2 pr-8 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold w-48 sm:w-56 focus:bg-white"
+              className="px-3 py-2 pr-8 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold w-44 sm:w-52 focus:bg-white"
             />
             <Search className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-3" />
           </div>
@@ -272,16 +358,17 @@ export const AdminFleetManager: React.FC<AdminFleetManagerProps> = ({
           <button
             type="button"
             onClick={handleOpenNewDriver}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
           >
             <Plus className="w-4 h-4" />
-            <span>افزودن راننده جدید</span>
+            <span>افزودن سفیر جدید</span>
           </button>
         </div>
       </div>
 
       {/* Main Grid: Drivers List + Selected Driver Details Drawer */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+      {viewMode === 'cards_detail' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
         {/* Left / Top List (5 cols on lg) */}
         <div className="lg:col-span-5 space-y-2.5">
           {filteredDrivers.map((driver) => {
@@ -651,6 +738,319 @@ export const AdminFleetManager: React.FC<AdminFleetManagerProps> = ({
           )}
         </div>
       </div>
+      )}
+
+      {/* DETAILED FLEET STATS & PERFORMANCE TABLE VIEW */}
+      {viewMode === 'stats_table' && (
+        <div className="space-y-4 animate-in fade-in">
+          {/* Fleet Performance KPI Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+              <div className="flex items-center justify-between text-slate-500">
+                <span className="text-xs font-bold">کل ناوگان سفیران</span>
+                <Truck className="w-4 h-4 text-emerald-600" />
+              </div>
+              <div className="text-base sm:text-lg font-black text-slate-900 mt-2 font-mono">
+                {toPersianDigits(totalFleetCount)} <span className="text-xs font-sans font-bold">سفیر</span>
+              </div>
+              <div className="text-[10px] text-emerald-600 mt-1 font-bold">
+                {toPersianDigits(activeFleetCount)} سفیر فعال و تأییدشده
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+              <div className="flex items-center justify-between text-emerald-600">
+                <span className="text-xs font-bold">سفیران برخط (آماده‌به‌کار)</span>
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              </div>
+              <div className="text-base sm:text-lg font-black text-emerald-700 mt-2 font-mono">
+                {toPersianDigits(onlineFleetCount)} <span className="text-xs font-sans font-bold">نفر</span>
+              </div>
+              <div className="text-[10px] text-emerald-600 mt-1 font-bold">
+                آماده دریافت ماموریت بازیافت
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+              <div className="flex items-center justify-between text-indigo-600">
+                <span className="text-xs font-bold">مجموع تناژ جمع‌آوری‌شده</span>
+                <Scale className="w-4 h-4 text-indigo-600" />
+              </div>
+              <div className="text-base sm:text-lg font-black text-indigo-800 mt-2 font-mono">
+                {toPersianDigits(totalFleetKg)} <span className="text-xs font-sans font-bold">kg</span>
+              </div>
+              <div className="text-[10px] text-indigo-600 mt-1 font-bold">
+                کل پسماند ورودی از مبدا
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+              <div className="flex items-center justify-between text-blue-600">
+                <span className="text-xs font-bold">ماموریت‌های موفق</span>
+                <CheckCircle2 className="w-4 h-4 text-blue-600" />
+              </div>
+              <div className="text-base sm:text-lg font-black text-blue-800 mt-2 font-mono">
+                {toPersianDigits(totalFleetPickups)} <span className="text-xs font-sans font-bold">سرویس</span>
+              </div>
+              <div className="text-[10px] text-blue-600 mt-1 font-bold">
+                تحویل و توزین موفق
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs col-span-2 sm:col-span-1">
+              <div className="flex items-center justify-between text-amber-500">
+                <span className="text-xs font-bold">میانگین رضایت شهروندان</span>
+                <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+              </div>
+              <div className="text-base sm:text-lg font-black text-amber-800 mt-2 font-mono">
+                {toPersianDigits(avgFleetRating)} <span className="text-xs font-sans font-bold">از ۵.۰</span>
+              </div>
+              <div className="text-[10px] text-amber-600 mt-1 font-bold">
+                ارزیابی رفتار و دقت باسکول
+              </div>
+            </div>
+          </div>
+
+          {/* Table Filters & Sorting Bar */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* City Filter */}
+              <div className="flex items-center gap-1 text-xs">
+                <span className="font-bold text-slate-500">شهر:</span>
+                <select
+                  value={cityFilter}
+                  onChange={(e) => setCityFilter(e.target.value)}
+                  className="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:bg-white"
+                >
+                  <option value="all">همه شهرها</option>
+                  {Object.entries(CITIES).map(([k, c]) => (
+                    <option key={k} value={k}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Status Filter */}
+              <div className="flex items-center gap-1 text-xs">
+                <span className="font-bold text-slate-500">وضعیت حساب:</span>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as any)}
+                  className="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:bg-white"
+                >
+                  <option value="all">همه وضعیت‌ها</option>
+                  <option value="active">فعال</option>
+                  <option value="warning">دارای اخطار</option>
+                  <option value="suspended">تعلیق‌شده</option>
+                </select>
+              </div>
+
+              {/* Online Filter */}
+              <div className="flex items-center gap-1 text-xs">
+                <span className="font-bold text-slate-500">حضور:</span>
+                <select
+                  value={onlineFilter}
+                  onChange={(e) => setOnlineFilter(e.target.value as any)}
+                  className="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:bg-white"
+                >
+                  <option value="all">همه</option>
+                  <option value="online">آنلاین و آماده</option>
+                  <option value="offline">آفلاین</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Sorting Controls */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
+                <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                <span>مرتب‌سازی:</span>
+              </span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:bg-white"
+              >
+                <option value="completed">بیشترین ماموریت موفق</option>
+                <option value="weight">بیشترین وزن جمع‌آوری (kg)</option>
+                <option value="rating">بالاترین امتیاز شهروندان</option>
+                <option value="name">نام سفیر (الفبا)</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
+                className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+                title={sortOrder === 'desc' ? 'نزولی به صعودی' : 'صعودی به نزولی'}
+              >
+                {sortOrder === 'desc' ? 'نزولی ↓' : 'صعودی ↑'}
+              </button>
+
+              <span className="text-xs text-slate-500 font-bold bg-slate-100 px-2.5 py-1 rounded-xl">
+                {toPersianDigits(tableFilteredDrivers.length)} سفیر یافت شد
+              </span>
+            </div>
+          </div>
+
+          {/* Main Stats Table */}
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-right border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-black text-slate-600">
+                    <th className="py-3 px-4">مشخصات سفیر</th>
+                    <th className="py-3 px-4">شماره تماس و کدملی</th>
+                    <th className="py-3 px-4">شهر و مشخصات خودرو</th>
+                    <th className="py-3 px-4 text-center">وضعیت برخط</th>
+                    <th className="py-3 px-4 text-center">وضعیت حساب</th>
+                    <th className="py-3 px-4 text-center">پسماند جمع‌آوری (kg)</th>
+                    <th className="py-3 px-4 text-center">ماموریت‌ها</th>
+                    <th className="py-3 px-4 text-center">امتیاز و رضایت</th>
+                    <th className="py-3 px-4 text-center">لاگ روایی</th>
+                    <th className="py-3 px-4 text-center">عملیات مدیریت</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs font-medium">
+                  {tableFilteredDrivers.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="py-12 text-center text-slate-400 text-xs">
+                        هیچ سفیری با فیلترهای مشخص‌شده در سیستم یافت نشد.
+                      </td>
+                    </tr>
+                  ) : (
+                    tableFilteredDrivers.map((driver) => {
+                      const cityName = CITIES[driver.cityId]?.name || 'نامشخص';
+                      const logsCount = driver.activityLogs?.length || 0;
+
+                      return (
+                        <tr key={driver.id} className="hover:bg-slate-50/80 transition">
+                          {/* Driver Info */}
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-2.5">
+                              <img
+                                src={driver.avatarUrl || AVATAR_PRESETS[0]}
+                                alt={driver.name}
+                                className="w-9 h-9 rounded-xl object-cover border border-slate-200"
+                              />
+                              <div>
+                                <div className="font-black text-slate-900">{driver.name}</div>
+                                <div className="text-[10px] text-slate-400 mt-0.5">
+                                  عضویت: {driver.joinedDateStr || '۱۴۰۵'}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Contact & National ID */}
+                          <td className="py-3.5 px-4">
+                            <div className="font-mono font-bold text-slate-800 text-xs">{driver.phone}</div>
+                            <div className="text-[10px] text-slate-400 font-mono mt-0.5">کدملی: {driver.nationalId}</div>
+                          </td>
+
+                          {/* City & Vehicle */}
+                          <td className="py-3.5 px-4">
+                            <div className="font-bold text-slate-800">{cityName}</div>
+                            <div className="text-[10px] text-slate-500 mt-0.5 truncate max-w-[130px]">
+                              {driver.vehicleType} • {driver.plateNumber}
+                            </div>
+                          </td>
+
+                          {/* Online Status */}
+                          <td className="py-3.5 px-4 text-center">
+                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-black ${
+                              driver.isOnline
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-slate-100 text-slate-500'
+                            }`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${driver.isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                              <span>{driver.isOnline ? 'برخط' : 'آفلاین'}</span>
+                            </span>
+                          </td>
+
+                          {/* Account Status */}
+                          <td className="py-3.5 px-4 text-center">
+                            <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black ${
+                              driver.status === 'active'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : driver.status === 'warning'
+                                ? 'bg-amber-50 text-amber-700 border border-amber-300'
+                                : 'bg-rose-50 text-rose-700 border border-rose-300'
+                            }`}>
+                              {driver.status === 'active' ? 'فعال' : driver.status === 'warning' ? `اخطار (${toPersianDigits(driver.warningCount || 1)})` : 'تعلیق'}
+                            </span>
+                          </td>
+
+                          {/* Collected Kg */}
+                          <td className="py-3.5 px-4 text-center font-mono font-black text-emerald-800">
+                            {toPersianDigits(driver.totalCollectedKg)} <span className="text-[10px] font-sans font-bold text-slate-500">kg</span>
+                          </td>
+
+                          {/* Completed Pickups */}
+                          <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-800">
+                            {toPersianDigits(driver.totalCompletedPickups)}
+                          </td>
+
+                          {/* Rating */}
+                          <td className="py-3.5 px-4 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                              <span className="font-mono font-bold text-slate-800 text-xs">
+                                {toPersianDigits((driver.rating || 5).toFixed(1))}
+                              </span>
+                            </div>
+                            <div className="text-[9px] text-slate-400 mt-0.5">
+                              {toPersianDigits(driver.ratingCount || 0)} نظر
+                            </div>
+                          </td>
+
+                          {/* Activity Logs Count */}
+                          <td className="py-3.5 px-4 text-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedDriver(driver);
+                                setViewMode('cards_detail');
+                              }}
+                              className="px-2 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 rounded-lg text-[11px] font-bold text-slate-700 transition cursor-pointer"
+                              title="مشاهده لاگ‌های روایی و عامیانه این سفیر"
+                            >
+                              {toPersianDigits(logsCount)} لاگ روایی
+                            </button>
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-3.5 px-4 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                type="button"
+                                onClick={(e) => handleOpenEdit(driver, e)}
+                                className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition cursor-pointer"
+                                title="ویرایش اطلاعات هویتی و رمز"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedDriver(driver);
+                                  setViewMode('cards_detail');
+                                }}
+                                className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition cursor-pointer"
+                                title="مشاهده پرونده کامل و لاگ‌ها"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL: EDIT / CREATE DRIVER */}
       {(isEditModalOpen || isNewDriverModalOpen) && (

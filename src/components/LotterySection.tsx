@@ -11,11 +11,14 @@ import {
   Send, 
   Clock,
   History,
-  X
+  X,
+  UserX,
+  Calendar,
+  Check
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { CityId, UserProfile, PickupRequest, LotteryWinner, LiveEventLottery, ScheduledLottery } from '../types';
-import { CITIES, PAST_LOTTERY_WINNERS, ACTIVE_LIVE_LOTTERY } from '../data/cities';
+import { CITIES, PAST_LOTTERY_WINNERS, INITIAL_LIVE_LOTTERIES } from '../data/cities';
 import { toPersianDigits } from '../utils/persian';
 
 interface LotterySectionProps {
@@ -26,6 +29,7 @@ interface LotterySectionProps {
   onClose?: () => void;
   scheduledLottery?: ScheduledLottery;
   liveEventLottery?: LiveEventLottery;
+  liveEventLotteries?: LiveEventLottery[];
   winnersList?: LotteryWinner[];
   ticketResetAnnouncement?: string;
   onRegisterEventCode?: (code: string) => boolean;
@@ -39,17 +43,22 @@ export const LotterySection: React.FC<LotterySectionProps> = ({
   onClose,
   scheduledLottery,
   liveEventLottery,
+  liveEventLotteries: propLiveEvents,
   winnersList = PAST_LOTTERY_WINNERS,
   ticketResetAnnouncement,
   onRegisterEventCode
 }) => {
   const city = CITIES[currentCity] || CITIES.noorabad;
-  const activeLive = liveEventLottery || ACTIVE_LIVE_LOTTERY;
+  const allEvents = propLiveEvents && propLiveEvents.length > 0 ? propLiveEvents : INITIAL_LIVE_LOTTERIES;
 
   const [activeTab, setActiveTab] = useState<'tickets' | 'live_event' | 'winners'>('tickets');
+  const [selectedEventId, setSelectedEventId] = useState<string>(allEvents[0]?.id || 'live-event-110');
+  const activeSelectedEvent = allEvents.find(e => e.id === selectedEventId) || allEvents[0];
+
   const [eventCodeInput, setEventCodeInput] = useState('');
   const [eventRegisteredSuccess, setEventRegisteredSuccess] = useState(false);
   const [eventErrorMessage, setEventErrorMessage] = useState('');
+  const [successEventTitle, setSuccessEventTitle] = useState('');
 
   // Calculate ticket counts based on weight rule: 1kg cash = 1 ticket, 1kg charity = 2 tickets
   const calculatedTickets = requests.map((r) => {
@@ -68,29 +77,45 @@ export const LotterySection: React.FC<LotterySectionProps> = ({
 
   const totalCalculatedTickets = calculatedTickets.reduce((sum, t) => sum + t.ticketCount, 0);
 
-  // Handle Event Code submission (e.g. 110)
+  // Handle Event Code submission (Item 3: امکان شرکت در چند کد رویداد هم‌زمان)
   const handleRegisterEventCode = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanCode = eventCodeInput.trim();
+    const cleanCode = eventCodeInput.trim().toUpperCase();
     if (!cleanCode) {
       setEventErrorMessage('لطفاً کد رویداد را وارد نمایید');
       return;
     }
 
-    if (cleanCode === '110' || cleanCode === activeLive.eventCode) {
+    const matchedEvent = allEvents.find(ev => ev.eventCode.toUpperCase() === cleanCode);
+
+    if (matchedEvent) {
       if (onRegisterEventCode) {
         onRegisterEventCode(cleanCode);
       }
+      setSuccessEventTitle(matchedEvent.eventTitle);
       setEventRegisteredSuccess(true);
       setEventErrorMessage('');
       confetti({
-        particleCount: 60,
-        spread: 70,
+        particleCount: 70,
+        spread: 75,
         origin: { y: 0.6 }
       });
     } else {
-      setEventErrorMessage('کد رویداد وارد شده صحیح نمی‌باشد. لطفاً کد اعلامی توسط مجری مراسم را با دقت وارد نمایید.');
+      setEventErrorMessage('کد رویداد وارد شده صحیح نمی‌باشد. لطفاً کدهای فعال در فهرست پایین را بررسی نمایید.');
     }
+  };
+
+  const handleQuickRegister = (event: LiveEventLottery) => {
+    if (onRegisterEventCode) {
+      onRegisterEventCode(event.eventCode);
+    }
+    setSuccessEventTitle(event.eventTitle);
+    setEventRegisteredSuccess(true);
+    confetti({
+      particleCount: 70,
+      spread: 75,
+      origin: { y: 0.6 }
+    });
   };
 
   return (
@@ -157,7 +182,7 @@ export const LotterySection: React.FC<LotterySectionProps> = ({
           }`}
         >
           <Flame className="w-4 h-4 text-rose-500 animate-pulse" />
-          <span>ورود به قرعه‌کشی جشن حضوری</span>
+          <span>قرعه‌کشی حضوری ({toPersianDigits(allEvents.length)})</span>
         </button>
 
         <button
@@ -168,7 +193,7 @@ export const LotterySection: React.FC<LotterySectionProps> = ({
           }`}
         >
           <Trophy className="w-4 h-4 text-emerald-600" />
-          <span>برندگان دوره‌های قبل</span>
+          <span>تالار برندگان ({toPersianDigits(winnersList.length)})</span>
         </button>
       </div>
 
@@ -280,84 +305,115 @@ export const LotterySection: React.FC<LotterySectionProps> = ({
         </div>
       )}
 
-      {/* TAB 2: LIVE EVENT ON-SITE LOTTERY (DYNAMIC CODE) */}
+      {/* TAB 2: LIVE EVENT ON-SITE LOTTERIES (Item 3: چند کد هم‌زمان با ساعت و تاریخ مستقل) */}
       {activeTab === 'live_event' && (
-        <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200 shadow-2xs space-y-4 animate-in fade-in">
-          <div className="flex items-start gap-3 bg-gradient-to-r from-rose-50 to-amber-50 p-4 rounded-2xl border border-rose-100">
-            <div className="w-10 h-10 rounded-2xl bg-rose-500 text-white flex items-center justify-center shrink-0">
-              <Flame className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-black text-slate-900">
-                {activeLive.eventTitle}
-              </h3>
-              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                {activeLive.description}
-              </p>
-              <div className="text-[11px] text-rose-700 font-bold mt-2">
-                🎁 جوایز ویژه جشن: {activeLive.prizeSummary}
-              </div>
-            </div>
+        <div className="space-y-4 animate-in fade-in">
+          {/* List of active concurrent events */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {allEvents.map((ev) => {
+              const isSelected = selectedEventId === ev.id;
+              return (
+                <div
+                  key={ev.id}
+                  onClick={() => setSelectedEventId(ev.id)}
+                  className={`p-4 rounded-3xl border transition cursor-pointer space-y-2.5 ${
+                    isSelected
+                      ? 'bg-gradient-to-r from-rose-50 to-amber-50 border-rose-300 ring-2 ring-rose-200 shadow-sm'
+                      : 'bg-white border-slate-200 hover:border-rose-200 shadow-2xs'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="px-3 py-1 rounded-xl bg-rose-600 text-white font-mono font-black text-xs shadow-xs">
+                      کد: {ev.eventCode}
+                    </span>
+                    <span className="text-[10px] bg-rose-100 text-rose-800 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-rose-600" />
+                      <span>{ev.startDate}</span>
+                    </span>
+                  </div>
+
+                  <h3 className="font-black text-xs sm:text-sm text-slate-900">{ev.eventTitle}</h3>
+                  <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed">{ev.description}</p>
+                  
+                  <div className="pt-1 border-t border-slate-100 flex items-center justify-between text-[10px] font-bold text-rose-800">
+                    <span>🎁 {ev.prizeSummary}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleQuickRegister(ev);
+                      }}
+                      className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-black transition"
+                    >
+                      ثبت سریع
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
-          {eventRegisteredSuccess ? (
-            <div className="p-5 bg-emerald-50 rounded-2xl border border-emerald-200 text-center space-y-2 animate-in zoom-in-95">
-              <div className="w-12 h-12 rounded-full bg-emerald-600 text-white flex items-center justify-center mx-auto shadow-md">
-                <CheckCircle2 className="w-6 h-6" />
-              </div>
-              <h4 className="font-black text-sm text-emerald-900">
-                ثبت‌نام شما در جشن با موفقیت انجام شد!
-              </h4>
-              <p className="text-xs text-emerald-700">
-                کد اختصاصی شما در گردونه شانس رویداد حضوری فعال گردید و در قرعه‌کشی زنده شرکت داده خواهید شد.
-              </p>
-              <button
-                type="button"
-                onClick={() => setEventRegisteredSuccess(false)}
-                className="mt-2 text-xs font-bold text-slate-600 hover:text-slate-900 underline"
-              >
-                ثبت کد دیگر
-              </button>
-            </div>
-          ) : (
-            <form onSubmit={handleRegisterEventCode} className="space-y-3">
-              <div>
-                <label className="block text-xs font-black text-slate-800 mb-1.5">
-                  کد اعلام‌شده در جشن حضوری (رمز تایید مراسم) را وارد فرمایید:
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={eventCodeInput}
-                    onChange={(e) => {
-                      setEventCodeInput(e.target.value);
-                      setEventErrorMessage('');
-                    }}
-                    placeholder="کد اعلامی توسط مجری مراسم در سالن..."
-                    className="flex-1 px-4 py-3 bg-slate-50 border border-slate-300 rounded-2xl text-base font-mono font-black text-center text-slate-900 focus:bg-white focus:border-rose-500 outline-hidden"
-                  />
-                  <button
-                    type="submit"
-                    className="px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs sm:text-sm rounded-2xl transition shadow-md flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Send className="w-4 h-4" />
-                    <span>ثبت در قرعه‌کشی</span>
-                  </button>
+          {/* Form to submit code */}
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200 shadow-2xs space-y-4">
+            {eventRegisteredSuccess ? (
+              <div className="p-5 bg-emerald-50 rounded-2xl border border-emerald-200 text-center space-y-2 animate-in zoom-in-95">
+                <div className="w-12 h-12 rounded-full bg-emerald-600 text-white flex items-center justify-center mx-auto shadow-md">
+                  <CheckCircle2 className="w-6 h-6" />
                 </div>
-                {eventErrorMessage && (
-                  <p className="text-xs text-rose-600 font-bold mt-1.5">{eventErrorMessage}</p>
-                )}
+                <h4 className="font-black text-sm text-emerald-900">
+                  ثبت‌نام شما در «{successEventTitle || activeSelectedEvent?.eventTitle}» با موفقیت انجام شد!
+                </h4>
+                <p className="text-xs text-emerald-700">
+                  کد اختصاصی شما در گردونه شانس رویداد حضوری فعال گردید و در قرعه‌کشی زنده شرکت داده خواهید شد.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setEventRegisteredSuccess(false)}
+                  className="mt-2 text-xs font-bold text-slate-600 hover:text-slate-900 underline cursor-pointer"
+                >
+                  ثبت کد رویداد دیگر
+                </button>
               </div>
+            ) : (
+              <form onSubmit={handleRegisterEventCode} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-black text-slate-800 mb-1.5">
+                    کد اعلام‌شده در همایش یا مراسم (مثلاً: {allEvents.map(e => e.eventCode).join(' یا ')}):
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={eventCodeInput}
+                      onChange={(e) => {
+                        setEventCodeInput(e.target.value);
+                        setEventErrorMessage('');
+                      }}
+                      placeholder="کد اعلامی توسط مجری در سالن..."
+                      className="flex-1 px-4 py-3 bg-slate-50 border border-slate-300 rounded-2xl text-base font-mono font-black text-center text-slate-900 focus:bg-white focus:border-rose-500 outline-hidden"
+                    />
+                    <button
+                      type="submit"
+                      className="px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs sm:text-sm rounded-2xl transition shadow-md flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Send className="w-4 h-4" />
+                      <span>ثبت در گردونه</span>
+                    </button>
+                  </div>
+                  {eventErrorMessage && (
+                    <p className="text-xs text-rose-600 font-bold mt-1.5">{eventErrorMessage}</p>
+                  )}
+                </div>
 
-              <div className="text-[11px] text-slate-400 bg-slate-50 p-3 rounded-xl">
-                💡 نکته: این بخش ویژه گردهمایی‌های حضوری، مراسم جشن روز پدر، اعیاد ملی و پاکسازی‌های دسته‌جمعی است و نیازی به تحویل بازیافت ندارد.
-              </div>
-            </form>
-          )}
+                <div className="text-[11px] text-slate-400 bg-slate-50 p-3 rounded-xl">
+                  💡 نکته: این بخش ویژه گردهمایی‌های حضوری، مراسم جشن روز پدر، اعیاد ملی و پاکسازی‌های دسته‌جمعی است و نیازی به تحویل بازیافت ندارد.
+                </div>
+              </form>
+            )}
+          </div>
         </div>
       )}
 
-      {/* TAB 3: PAST WINNERS SHOWCASE */}
+      {/* TAB 3: PAST WINNERS SHOWCASE WITH ABSENT STATUS (Item 3) */}
       {activeTab === 'winners' && (
         <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-200 shadow-2xs space-y-3 animate-in fade-in">
           <div className="flex items-center justify-between mb-2">
@@ -371,39 +427,59 @@ export const LotterySection: React.FC<LotterySectionProps> = ({
           </div>
 
           <div className="space-y-2.5">
-            {winnersList.map((winner) => (
-              <div
-                key={winner.id}
-                className="p-3.5 rounded-2xl bg-gradient-to-r from-slate-50 to-amber-50/40 border border-slate-200 flex items-center justify-between gap-2"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center text-lg font-black shrink-0">
-                    {winner.prizeTier === 'first' ? '🥇' : winner.prizeTier === 'second' ? '🥈' : '🥉'}
+            {winnersList.map((winner) => {
+              const isAbsent = winner.isAbsent || winner.status === 'absent';
+              const isReplaced = winner.status === 'replaced';
+              return (
+                <div
+                  key={winner.id}
+                  className={`p-3.5 rounded-2xl border flex items-center justify-between gap-2 transition ${
+                    isAbsent 
+                      ? 'bg-rose-50/50 border-rose-200' 
+                      : isReplaced 
+                      ? 'bg-emerald-50/40 border-emerald-200' 
+                      : 'bg-gradient-to-r from-slate-50 to-amber-50/40 border-slate-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center text-lg font-black shrink-0">
+                      {isAbsent ? '❌' : winner.prizeTier === 'first' ? '🥇' : winner.prizeTier === 'second' ? '🥈' : '🥉'}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-black text-xs text-slate-900">{winner.winnerName}</span>
+                        <span className="text-[10px] text-slate-500">({winner.cityName})</span>
+                        {isAbsent && (
+                          <span className="text-[10px] bg-rose-100 text-rose-800 font-bold px-2 py-0.5 rounded-full border border-rose-300">
+                            غایب - جایگزین شد
+                          </span>
+                        )}
+                        {isReplaced && (
+                          <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-300">
+                            برنده جایگزین
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-amber-800 font-bold mt-0.5">
+                        {winner.prizeTitle}
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                        کد برنده: {winner.ticketCode} • {winner.userPhoneMasked}
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="font-black text-xs text-slate-900">
-                      {winner.winnerName} ({winner.cityName})
-                    </div>
-                    <div className="text-[11px] text-amber-800 font-bold mt-0.5">
-                      {winner.prizeTitle}
-                    </div>
-                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                      کد برنده: {winner.ticketCode} • {winner.userPhoneMasked}
-                    </div>
-                  </div>
-                </div>
 
-                <div className="text-left shrink-0">
-                  <span className="text-[10px] bg-white text-slate-600 px-2 py-1 rounded-xl border border-slate-200 font-medium">
-                    {winner.drawPeriod}
-                  </span>
+                  <div className="text-left shrink-0">
+                    <span className="text-[10px] bg-white text-slate-600 px-2 py-1 rounded-xl border border-slate-200 font-medium">
+                      {winner.drawPeriod}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
     </div>
   );
 };
-

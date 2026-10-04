@@ -14,18 +14,28 @@ import {
   GraduationCap, 
   Gamepad2, 
   Stethoscope, 
-  TrendingUp,
-  MapPin,
-  Flame,
-  Award
+  TrendingUp, 
+  MapPin, 
+  Flame, 
+  Award,
+  Search,
+  Filter,
+  FileText,
+  Calendar,
+  Phone,
+  Scale,
+  ArrowUpRight,
+  Layers,
+  Sparkle
 } from 'lucide-react';
-import { CharityProject, CityId } from '../../types';
+import { CharityProject, CityId, PickupRequest } from '../../types';
 import { CITIES } from '../../data/cities';
 import { toPersianDigits, formatTomans } from '../../utils/persian';
 
 interface AdminCharityManagerProps {
   currentCity: CityId;
   projects: CharityProject[];
+  requests?: PickupRequest[];
   onUpdateProjects: (projects: CharityProject[]) => void;
 }
 
@@ -39,11 +49,17 @@ const CATEGORY_OPTIONS: { id: CharityProject['category']; label: string; icon: a
 export const AdminCharityManager: React.FC<AdminCharityManagerProps> = ({
   currentCity,
   projects = [],
+  requests = [],
   onUpdateProjects
 }) => {
+  const [activeSubTab, setActiveSubTab] = useState<'projects' | 'breakdown'>('projects');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<CharityProject | null>(null);
   const [selectedCityFilter, setSelectedCityFilter] = useState<string>('all');
+  
+  // Breakdown filters
+  const [breakdownProjectFilter, setBreakdownProjectFilter] = useState<string>('all');
+  const [breakdownSearchQuery, setBreakdownSearchQuery] = useState('');
 
   // Form State
   const [formTitle, setFormTitle] = useState('');
@@ -148,6 +164,43 @@ export const AdminCharityManager: React.FC<AdminCharityManagerProps> = ({
   const totalContributorsCount = projects.reduce((sum, p) => sum + p.totalContributors, 0);
   const overallProgress = totalTargetFunds > 0 ? Math.round((totalRaisedFunds / totalTargetFunds) * 100) : 0;
 
+  // Donations from requests
+  const donationRequests = (requests || []).filter(
+    (r) => r.type === 'charity' || r.convertedToCharityMidway || (r.charityName && r.charityName.trim() !== '')
+  );
+
+  const filteredDonations = donationRequests.filter((r) => {
+    // City filter
+    if (selectedCityFilter !== 'all' && r.cityId !== selectedCityFilter) return false;
+    // Project filter
+    if (breakdownProjectFilter !== 'all') {
+      const matchProj = r.charityProjectId === breakdownProjectFilter || 
+        (r.charityName && r.charityName.includes(breakdownProjectFilter));
+      if (!matchProj) return false;
+    }
+    // Search query
+    if (breakdownSearchQuery.trim()) {
+      const q = breakdownSearchQuery.toLowerCase();
+      const match =
+        r.trackingCode.toLowerCase().includes(q) ||
+        r.userName.toLowerCase().includes(q) ||
+        r.userPhone.includes(q) ||
+        (r.charityName || '').toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    return true;
+  });
+
+  const totalDonationRequestsTomans = donationRequests.reduce(
+    (sum, r) => sum + (r.finalPayoutTomans || r.approximatePayoutTomans || (r.actualKg || r.estimatedKg || 0) * 15000),
+    0
+  );
+  const totalDonatedKgFromRequests = donationRequests.reduce(
+    (sum, r) => sum + (r.actualKg || r.estimatedKg || 0),
+    0
+  );
+  const totalMidwayConversions = donationRequests.filter((r) => r.convertedToCharityMidway).length;
+
   return (
     <div className="space-y-4 sm:space-y-5 animate-in fade-in">
       {/* Header Banner */}
@@ -181,7 +234,44 @@ export const AdminCharityManager: React.FC<AdminCharityManagerProps> = ({
         </button>
       </div>
 
-      {/* KPI Cards */}
+      {/* Subtabs: Projects vs Citizen Donations Breakdown */}
+      <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl gap-1 text-xs overflow-x-auto shadow-inner">
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('projects')}
+          className={`py-2 px-4 rounded-xl font-black transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+            activeSubTab === 'projects'
+              ? 'bg-white text-rose-700 shadow-sm ring-1 ring-slate-200'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+          }`}
+        >
+          <HeartHandshake className="w-4 h-4" />
+          <span>طرح‌ها و پروژه‌های شهری ({toPersianDigits(projects.length)})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('breakdown')}
+          className={`py-2 px-4 rounded-xl font-black transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+            activeSubTab === 'breakdown'
+              ? 'bg-white text-rose-700 shadow-sm ring-1 ring-slate-200'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+          }`}
+        >
+          <FileText className="w-4 h-4" />
+          <span>تفکیک و ریز اهداهای شهروندان ({toPersianDigits(donationRequests.length)})</span>
+          {totalMidwayConversions > 0 && (
+            <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded-full">
+              {toPersianDigits(totalMidwayConversions)} تبدیل در محل
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* SUBTAB 1: PROJECTS */}
+      {activeSubTab === 'projects' && (
+        <div className="space-y-4">
+          {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
           <div className="flex items-center justify-between text-slate-500">
@@ -371,6 +461,216 @@ export const AdminCharityManager: React.FC<AdminCharityManagerProps> = ({
           );
         })}
       </div>
+      </div>
+      )}
+
+      {/* SUBTAB 2: CITIZEN DONATIONS BREAKDOWN TABLE */}
+      {activeSubTab === 'breakdown' && (
+        <div className="space-y-4">
+          {/* Breakdown KPI Summary Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+              <div className="flex items-center justify-between text-rose-600">
+                <span className="text-xs font-bold">مجموع مبالغ اهدایی شهروندان</span>
+                <HeartHandshake className="w-4 h-4 text-rose-600" />
+              </div>
+              <div className="text-base sm:text-lg font-black text-rose-700 mt-2 font-mono">
+                {toPersianDigits(formatTomans(totalDonationRequestsTomans))}
+              </div>
+              <div className="text-[10px] text-rose-500 mt-1 font-bold">
+                از عواید تفکیک بازیافت
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+              <div className="flex items-center justify-between text-emerald-600">
+                <span className="text-xs font-bold">کل پسماند وقف‌شده</span>
+                <Scale className="w-4 h-4 text-emerald-600" />
+              </div>
+              <div className="text-base sm:text-lg font-black text-emerald-700 mt-2 font-mono">
+                {toPersianDigits(totalDonatedKgFromRequests)} <span className="text-xs font-sans font-bold">کیلوگرم</span>
+              </div>
+              <div className="text-[10px] text-emerald-600 mt-1 font-bold">
+                مواد بازیافتی اهدا شده
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+              <div className="flex items-center justify-between text-indigo-600">
+                <span className="text-xs font-bold">تعداد تراکنش‌های نیکوکاری</span>
+                <FileText className="w-4 h-4 text-indigo-600" />
+              </div>
+              <div className="text-base sm:text-lg font-black text-indigo-700 mt-2 font-mono">
+                {toPersianDigits(donationRequests.length)} <span className="text-xs font-sans font-bold">سفارش</span>
+              </div>
+              <div className="text-[10px] text-indigo-500 mt-1 font-bold">
+                ثبت شده در سامانه
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+              <div className="flex items-center justify-between text-amber-600">
+                <span className="text-xs font-bold">تبدیل به خیریه در محل</span>
+                <Sparkles className="w-4 h-4 text-amber-600" />
+              </div>
+              <div className="text-base sm:text-lg font-black text-amber-800 mt-2 font-mono">
+                {toPersianDigits(totalMidwayConversions)} <span className="text-xs font-sans font-bold">سفارش</span>
+              </div>
+              <div className="text-[10px] text-amber-600 mt-1 font-bold">
+                با رضایت شهروند حین توزین
+              </div>
+            </div>
+          </div>
+
+          {/* Filters Bar: Search & Project Selector */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 flex-1">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={breakdownSearchQuery}
+                  onChange={(e) => setBreakdownSearchQuery(e.target.value)}
+                  placeholder="جستجوی نام شهروند، شماره موبایل، کد رهگیری..."
+                  className="w-full px-3.5 py-2 pr-9 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold focus:bg-white focus:border-rose-500"
+                />
+                <Search className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5" />
+              </div>
+
+              <select
+                value={breakdownProjectFilter}
+                onChange={(e) => setBreakdownProjectFilter(e.target.value)}
+                className="px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:bg-white shrink-0"
+              >
+                <option value="all">تمام پروژه‌ها و طرح‌ها</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.title}>
+                    {p.title} ({p.cityName})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* City Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto shrink-0">
+              <button
+                type="button"
+                onClick={() => setSelectedCityFilter('all')}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                  selectedCityFilter === 'all'
+                    ? 'bg-rose-600 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                همه شهرها
+              </button>
+              {Object.entries(CITIES).map(([cityKey, cityData]) => (
+                <button
+                  key={cityKey}
+                  type="button"
+                  onClick={() => setSelectedCityFilter(cityKey)}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap ${
+                    selectedCityFilter === cityKey
+                      ? 'bg-rose-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {cityData.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Breakdown Table */}
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-right border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-black text-slate-600">
+                    <th className="py-3 px-4">کد رهگیری</th>
+                    <th className="py-3 px-4">شهروند / شماره</th>
+                    <th className="py-3 px-4">شهر و محله</th>
+                    <th className="py-3 px-4">طرح نیکوکاری هدف</th>
+                    <th className="py-3 px-4 text-center">وزن اهدایی</th>
+                    <th className="py-3 px-4 text-center">ارزش ریالی (تومان)</th>
+                    <th className="py-3 px-4 text-center">نوع ثبت</th>
+                    <th className="py-3 px-4 text-center">وضعیت</th>
+                    <th className="py-3 px-4 text-left">تاریخ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs font-medium">
+                  {filteredDonations.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="py-10 text-center text-slate-400 text-xs">
+                        هیچ اهدا یا مشارکت نیکوکاری با فیلترهای انتخابی یافت نشد.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredDonations.map((req) => {
+                      const amountTomans = req.finalPayoutTomans || req.approximatePayoutTomans || (req.actualKg || req.estimatedKg || 0) * 15000;
+                      const weightKg = req.actualKg || req.estimatedKg || 0;
+                      const isMidway = !!req.convertedToCharityMidway;
+
+                      return (
+                        <tr key={req.id} className="hover:bg-slate-50/80 transition">
+                          <td className="py-3.5 px-4 font-mono font-black text-slate-800">
+                            {req.trackingCode}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <div className="font-bold text-slate-900">{req.userName}</div>
+                            <div className="text-[11px] text-slate-500 font-mono mt-0.5">{req.userPhone}</div>
+                          </td>
+                          <td className="py-3.5 px-4 text-slate-700">
+                            <div className="font-bold text-xs">{req.cityName}</div>
+                            <div className="text-[10px] text-slate-500 truncate max-w-[140px]">
+                              {req.address.neighborhood || req.address.street}
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span className="font-bold text-rose-800 bg-rose-50 px-2 py-1 rounded-lg border border-rose-200 text-[11px] inline-block">
+                              {req.charityName || 'طرح نیکوکاری عمومی'}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 text-center font-mono font-bold text-emerald-700">
+                            {toPersianDigits(weightKg)} kg
+                          </td>
+                          <td className="py-3.5 px-4 text-center font-mono font-black text-rose-700">
+                            {toPersianDigits(formatTomans(amountTomans))}
+                          </td>
+                          <td className="py-3.5 px-4 text-center">
+                            {isMidway ? (
+                              <span className="px-2 py-0.5 bg-amber-100 text-amber-900 rounded-full text-[10px] font-black border border-amber-300" title={req.convertedToCharityNote || 'تبدیل در محل'}>
+                                تبدیل در محل توزین
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-900 rounded-full text-[10px] font-black border border-emerald-300">
+                                ثبت اولیه شهروند
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4 text-center">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                              req.status === 'collected'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : req.status === 'assigned'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}>
+                              {req.status === 'collected' ? 'واریز شده' : req.status === 'assigned' ? 'در حال جمع‌آوری' : 'در انتظار'}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 text-left font-mono text-[11px] text-slate-500">
+                            {req.dateStr}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* CREATE / EDIT PROJECT MODAL */}
       {isModalOpen && (

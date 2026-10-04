@@ -8,7 +8,9 @@ import {
   DriverProfile,
   ScheduledLottery,
   UserProfile,
-  HeroSlide
+  HeroSlide,
+  CitizenPoll,
+  FeedbackItem
 } from '../types';
 
 export const CITIES: Record<string, CityInfo> = {
@@ -184,7 +186,9 @@ export const PAST_LOTTERY_WINNERS: LotteryWinner[] = [
     ticketCode: 'PK-M88410',
     cityId: 'noorabad',
     cityName: 'نورآباد ممسنی',
-    awardedAt: '۱۴۰۵/۰۵/۳۰'
+    awardedAt: '۱۴۰۵/۰۵/۳۰',
+    status: 'claimed',
+    isAbsent: false
   },
   {
     id: 'win-2',
@@ -196,40 +200,116 @@ export const PAST_LOTTERY_WINNERS: LotteryWinner[] = [
     ticketCode: 'PK-K10943',
     cityId: 'kazeroon',
     cityName: 'کازرون',
-    awardedAt: '۱۴۰۵/۰۵/۳۰'
+    awardedAt: '۱۴۰۵/۰۵/۳۰',
+    status: 'claimed',
+    isAbsent: false
+  },
+  {
+    id: 'win-absent-1',
+    drawPeriod: 'دوره تیر ۱۴۰۵ (ویژه عید غدیر)',
+    winnerName: 'حامد صادقی',
+    userPhoneMasked: '۰۹۱۷***۴۴۹۹',
+    prizeTitle: 'دستگاه خردکن برقی و تصفیه آب',
+    prizeTier: 'third',
+    ticketCode: 'PK-T77112',
+    cityId: 'noorabad',
+    cityName: 'نورآباد ممسنی',
+    awardedAt: '۱۴۰۵/۰۴/۲۵',
+    status: 'absent',
+    isAbsent: true,
+    absentMarkedAt: '۱۴۰۵/۰۴/۲۵ ساعت ۱۹:۱۵',
+    absentReason: 'عدم حضور در سالن مراسم و عدم پاسخگویی پس از ۳ بار تماس',
+    replacedByWinnerId: 'win-3'
   },
   {
     id: 'win-3',
     drawPeriod: 'دوره تیر ۱۴۰۵ (ویژه عید غدیر)',
-    winnerName: 'محمد حسینی',
+    winnerName: 'محمد حسینی (برنده جایگزین)',
     userPhoneMasked: '۰۹۱۷***۵۵۱۰',
     prizeTitle: 'دستگاه خردکن برقی و تصفیه آب',
     prizeTier: 'third',
     ticketCode: 'PK-T77301',
     cityId: 'noorabad',
     cityName: 'نورآباد ممسنی',
-    awardedAt: '۱۴۰۵/۰۴/۲۵'
+    awardedAt: '۱۴۰۵/۰۴/۲۵',
+    status: 'replaced',
+    isAbsent: false,
+    replacementForWinnerId: 'win-absent-1'
   }
 ];
 
-export const ACTIVE_LIVE_LOTTERY: LiveEventLottery = {
-  id: 'live-event-110',
-  eventCode: '110',
-  eventTitle: 'جشن بزرگ روز پدر و تقدیر از پاکیاران نورآباد و کازرون',
-  description: 'کد ۱۱۰ را در جشن حضوری وارد کنید تا بدون نیاز به تحویل بار، مستقیماً در گردونه جوایز طلایی ثبت‌نام شوید.',
-  cityId: 'all',
-  isActive: true,
-  prizeSummary: '۵ عدد نیم سکه بهار آزادی + ۱۰ کارت هدیه نقدی ۲ میلیون تومانی + ۲۰ پکیج خانگی',
-  prizesList: [
-    '۵ عدد نیم سکه بهار آزادی برای ۵ شهروند خوش‌شانس',
-    '۱۰ کارت هدیه نقدی ۲ میلیون تومانی',
-    '۲۰ عدد پکیج سطل تفکیک هوشمند خانگی'
-  ],
-  eventDateStr: 'جمعه ۲۸ شهریور ۱۴۰۵ - ساعت ۱۸:۳۰',
-  locationVenue: 'سالن همایش‌های رازی ممسنی و فرهنگسرای کازرون',
-  participantsCount: 384,
-  registeredPhoneNumbers: ['09171234567', '09179998877', '09173332211', '09179876543']
-};
+export const INITIAL_LIVE_LOTTERIES: LiveEventLottery[] = [
+  {
+    id: 'live-event-110',
+    eventCode: '110',
+    eventTitle: 'جشن بزرگ روز پدر و پاکیاران ممسنی و کازرون',
+    description: 'کد ۱۱۰ را در جشن حضوری وارد کنید تا بدون نیاز به تحویل بار، مستقیماً در گردونه جوایز طلایی ثبت‌نام شوید.',
+    cityId: 'all',
+    isActive: true,
+    status: 'active',
+    startDate: '1405-06-28',
+    startTime: '18:00',
+    endDate: '1405-06-28',
+    endTime: '22:00',
+    prizeSummary: '۵ عدد نیم سکه بهار آزادی + ۱۰ کارت هدیه ۲ میلیونی',
+    prizesList: [
+      '۵ عدد نیم سکه بهار آزادی برای ۵ شهروند خوش‌شانس',
+      '۱۰ کارت هدیه نقدی ۲ میلیون تومانی',
+      '۲۰ عدد پکیج سطل تفکیک هوشمند خانگی'
+    ],
+    eventDateStr: 'جمعه ۲۸ شهریور ۱۴۰۵ - ساعت ۱۸ الی ۲۲',
+    locationVenue: 'سالن همایش‌های رازی ممسنی و فرهنگسرای کازرون',
+    participantsCount: 384,
+    registeredPhoneNumbers: ['09171234567', '09179998877', '09173332211', '09179876543']
+  },
+  {
+    id: 'live-event-724',
+    eventCode: '724',
+    eventTitle: 'همایش پاکسازی پاییزی تنگ بوان و بیشاپور',
+    description: 'کد ۷۲۴ ویژه داوطلبان پویش محیط‌زیستی زاگرس پاک. ثبت شانس اختصاصی گردونه در محل همایش.',
+    cityId: 'all',
+    isActive: true,
+    status: 'active',
+    startDate: '1405-07-10',
+    startTime: '08:30',
+    endDate: '1405-07-10',
+    endTime: '13:00',
+    prizeSummary: '۳ دستگاه دوچرخه کوهستان + ۱۵ کوله‌پشتی طبیعت‌گردی',
+    prizesList: [
+      '۳ دستگاه دوچرخه کوهستان ویژه سفیران سبز',
+      '۱۵ کوله‌پشتی کوهنوردی و طبیعت‌گردی',
+      '۳۰ بن خرید ملزومات باغبانی و گلکاری'
+    ],
+    eventDateStr: 'پنجشنبه ۱۰ مهر ۱۴۰۵ - ساعت ۰۸:۳۰ الی ۱۳:۰۰',
+    locationVenue: 'پارک جنگلی بوان نورآباد و تنگ چوگان کازرون',
+    participantsCount: 142,
+    registeredPhoneNumbers: ['09171234567', '09174443322', '09178889900']
+  },
+  {
+    id: 'live-event-2026',
+    eventCode: 'GOLD',
+    eventTitle: 'گردهمایی حامیان طرح نیکوکاری و احیای بلوط زاگرس',
+    description: 'کد GOLD ویژه نیکوکاران برتر که بیش از ۲۰ کیلوگرم بازیافت به خیریه‌ها اهدا کرده‌اند.',
+    cityId: 'all',
+    isActive: true,
+    status: 'scheduled',
+    startDate: '1405-07-25',
+    startTime: '16:00',
+    endDate: '1405-07-25',
+    endTime: '20:30',
+    prizeSummary: '۱۰ تندیس زرین حامی طبیعت + سکه‌های طلا',
+    prizesList: [
+      '۱۰ تندیس زرین حامی طبیعت و سکه تمام بهار آزادی',
+      'سفر زیارتی مشهد مقدس برای خانواده‌های حامی'
+    ],
+    eventDateStr: 'جمعه ۲۵ مهر ۱۴۰۵ - ساعت ۱۶:۰۰ الی ۲۰:۳۰',
+    locationVenue: 'میدان امام خمینی، سالن اجتماعات شهرداری نورآباد',
+    participantsCount: 88,
+    registeredPhoneNumbers: ['09171234567', '09179876543']
+  }
+];
+
+export const ACTIVE_LIVE_LOTTERY: LiveEventLottery = INITIAL_LIVE_LOTTERIES[0];
 
 export const INITIAL_SCHEDULED_LOTTERIES: ScheduledLottery[] = [
   {
@@ -663,10 +743,15 @@ export const INITIAL_HERO_SLIDES: HeroSlide[] = [
     subtitle: 'اعزام سفیر پاکیار با ترازوی دیجیتال و پرداخت آنی یا اهدای نیکوکاری',
     highlightText: 'تحویل آسان درب منزل یا محل کار شما',
     bgGradient: 'from-emerald-900 via-emerald-800 to-teal-900',
+    imageUrl: 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=800&auto=format&fit=crop&q=80',
+    aspectRatio: 'tall',
+    presetType: 'minimal_banner',
     textColor: 'light',
     iconName: 'Recycle',
     actionText: 'ثبت فوری جمع‌آوری',
     actionType: 'pickup',
+    linkUrl: 'https://pakino.ir/guide',
+    linkLabel: 'راهنمای تفکیک در مبدأ',
     isActive: true,
     order: 1
   },
@@ -678,10 +763,15 @@ export const INITIAL_HERO_SLIDES: HeroSlide[] = [
     subtitle: 'اهدای ربع سکه، کارت هدیه نقدی ۵ میلیونی و لوازم خانگی به شهروندان برتر',
     highlightText: '۲ برابر شانس بیشتر در صورت انتخاب حالت نیکوکاری',
     bgGradient: 'from-amber-900 via-amber-800 to-yellow-950',
+    imageUrl: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?w=800&auto=format&fit=crop&q=80',
+    aspectRatio: 'square',
+    presetType: 'photo_overlay',
     textColor: 'light',
     iconName: 'Trophy',
     actionText: 'مشاهده جوایز و کدها',
     actionType: 'lottery',
+    linkUrl: 'https://pakino.ir/lottery-rules',
+    linkLabel: 'قوانین و تاریخ قرعه‌کشی',
     isActive: true,
     order: 2
   },
@@ -693,12 +783,93 @@ export const INITIAL_HERO_SLIDES: HeroSlide[] = [
     subtitle: 'تبدیل ضایعات بازیافتی به تاب، سرسره و نهال‌های سبز برای شهر عزیزمان',
     highlightText: 'شفافیت ۱۰۰٪ عواید با گواهی رسمی نیکوکاری',
     bgGradient: 'from-teal-950 via-slate-900 to-emerald-950',
+    imageUrl: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=800&auto=format&fit=crop&q=80',
+    aspectRatio: 'tall',
+    presetType: 'minimal_banner',
     textColor: 'light',
     iconName: 'HeartHandshake',
     actionText: 'مشارکت در طرح‌های شهری',
     actionType: 'pickup',
+    linkUrl: 'https://pakino.ir/csr-zagros',
+    linkLabel: 'مشاهده پروژه‌های نیکوکاری',
     isActive: true,
     order: 3
+  }
+];
+
+export const INITIAL_POLLS: CitizenPoll[] = [
+  {
+    id: 'poll-1',
+    title: 'ارزیابی کیفیت و وقت‌شناسی سفیران جمع‌آوری پاکینو',
+    description: 'نظر شما درباره سرعت حضور رانندگان و دقت باسکول دیجیتال در نوبت‌های اخیر چیست؟',
+    cityId: 'all',
+    isActive: true,
+    startDate: '1405-06-01',
+    endDate: '1405-07-30',
+    category: 'service_quality',
+    totalVotes: 320,
+    options: [
+      { id: 'opt-1', text: 'عالی و کاملاً سر وقت با برخورد محترمانه', votesCount: 224 },
+      { id: 'opt-2', text: 'خوب، اما نیاز به اطلاع‌رسانی دقیق‌تر قبل از رسیدن', votesCount: 68 },
+      { id: 'opt-3', text: 'متوسط، تمایل دارم بازه زمانی دقیق‌تری انتخاب کنم', votesCount: 20 },
+      { id: 'opt-4', text: 'ضعیف (تاخیر در حضور)', votesCount: 8 }
+    ]
+  },
+  {
+    id: 'poll-2',
+    title: 'مناسب‌ترین ساعت برای شیفت جمع‌آوری در روزهای کاری',
+    description: 'کدام بازه زمانی برای تحویل پسماند خشک در منزل یا محل کسب شما راحت‌تر است؟',
+    cityId: 'all',
+    isActive: true,
+    startDate: '1405-06-15',
+    endDate: '1405-08-15',
+    category: 'schedule',
+    totalVotes: 185,
+    options: [
+      { id: 'opt-201', text: 'صبح زود (۰۸:۰۰ الی ۱۱:۰۰)', votesCount: 52 },
+      { id: 'opt-202', text: 'نیمروز (۱۱:۰۰ الی ۱۴:۰۰)', votesCount: 31 },
+      { id: 'opt-203', text: 'عصر (۱۴:۰۰ الی ۱۷:۰۰)', votesCount: 78 },
+      { id: 'opt-204', text: 'غروب و شب (۱۷:۰۰ الی ۲۰:۰۰)', votesCount: 24 }
+    ]
+  }
+];
+
+export const INITIAL_FEEDBACK_ITEMS: FeedbackItem[] = [
+  {
+    id: 'fb-101',
+    userName: 'علی حسینی',
+    userPhone: '09171234567',
+    cityId: 'noorabad',
+    category: 'suggestion',
+    message: 'پیشنهاد می‌کنم امکان تحویل روغن خوراکی سوخته هم به اقلام بازیافتی اضافه شود تا مانع آلودگی فاضلاب شهری شویم.',
+    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+    status: 'answered',
+    adminReply: 'با تشکر از پیشنهاد ارزشمند شما. واحد بازیافت شهرداری در حال آماده‌سازی مخازن استاندارد برای جمع‌آوری روغن مصرفی در فاز پاییز است.',
+    repliedAt: new Date(Date.now() - 86400000).toISOString(),
+    repliedBy: 'مدیریت پشتیبانی پاکینو'
+  },
+  {
+    id: 'fb-102',
+    userName: 'رضا کازرونی',
+    userPhone: '09179876543',
+    cityId: 'kazeroon',
+    category: 'question',
+    message: 'کدهای شانس قرعه‌کشی تا چه تاریخی معتبر هستند و آیا بعد از هر قرعه‌کشی صفر می‌شوند؟',
+    createdAt: new Date(Date.now() - 86400000 * 4).toISOString(),
+    status: 'answered',
+    adminReply: 'کدهای شانس مربوط به هر دوره تا روز برگزاری قرعه‌کشی آن دوره فعال هستند و پس از استخراج برندگان، بایگانی شده و دور جدید با شانس‌های تازه آغاز می‌گردد.',
+    repliedAt: new Date(Date.now() - 86400000 * 3).toISOString(),
+    repliedBy: 'واحد روابط عمومی'
+  },
+  {
+    id: 'fb-103',
+    userName: 'مریم مرادی',
+    userPhone: '09176662233',
+    cityId: 'kazeroon',
+    category: 'suggestion',
+    message: 'از برخورد عالی سفیر محترم آقای کاظمی در خیابان سلمان فارسی بسیار متشکرم. کارتن‌ها را خیلی سریع وزن و تسویه کردند.',
+    createdAt: new Date(Date.now() - 3600000 * 12).toISOString(),
+    status: 'received'
   }
 ];
 

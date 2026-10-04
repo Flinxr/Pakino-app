@@ -23,11 +23,12 @@ import {
 } from 'lucide-react';
 import { PickupRequest, CityId } from '../types';
 import { toPersianDigits, formatTomans } from '../utils/persian';
+import { GreenReceiptModal } from './GreenReceiptModal';
 
 interface HistoryViewProps {
   requests: PickupRequest[];
   onOpenNewPickup: () => void;
-  onCancelRequest: (requestId: string) => void;
+  onCancelRequest: (requestId: string, reason?: string) => void;
   onOpenRatingModal?: (request: PickupRequest) => void;
   currentCity: CityId;
 }
@@ -40,6 +41,9 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   currentCity
 }) => {
   const [filter, setFilter] = useState<'all' | 'pending' | 'collected' | 'charity' | 'cash'>('all');
+  const [cancellingRequest, setCancellingRequest] = useState<PickupRequest | null>(null);
+  const [cancelReason, setCancelReason] = useState<string>('');
+  const [selectedReceiptRequest, setSelectedReceiptRequest] = useState<PickupRequest | null>(null);
 
   const filteredRequests = requests.filter((req) => {
     if (filter === 'pending') return req.status === 'pending' || req.status === 'assigned';
@@ -270,16 +274,30 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Rating trigger */}
-                  {req.status === 'collected' && onOpenRatingModal && (
-                    <button
-                      type="button"
-                      onClick={() => onOpenRatingModal(req)}
-                      className="px-3 py-1.5 bg-white hover:bg-amber-50 text-amber-900 font-extrabold text-[11px] rounded-xl border border-amber-300 shadow-2xs flex items-center gap-1 self-end sm:self-auto cursor-pointer"
-                    >
-                      <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                      <span>{req.rating ? `امتیاز شما: ${toPersianDigits(req.rating)} ستاره` : 'ثبت نظر و امتیاز به سفیر'}</span>
-                    </button>
+                  {/* Rating & Receipt triggers */}
+                  {req.status === 'collected' && (
+                    <div className="flex items-center gap-1.5 self-end sm:self-auto flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedReceiptRequest(req)}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] rounded-xl shadow-2xs flex items-center gap-1 cursor-pointer transition"
+                        title="مشاهده شناسنامه سبز و چاپ رسید"
+                      >
+                        <Award className="w-3.5 h-3.5 text-white" />
+                        <span>رسید سبز و شناسنامه</span>
+                      </button>
+
+                      {onOpenRatingModal && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenRatingModal(req)}
+                          className="px-3 py-1.5 bg-white hover:bg-amber-50 text-amber-900 font-extrabold text-[11px] rounded-xl border border-amber-300 shadow-2xs flex items-center gap-1 cursor-pointer transition"
+                        >
+                          <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                          <span>{req.rating ? `امتیاز شما: ${toPersianDigits(req.rating)} ستاره` : 'ثبت نظر و امتیاز'}</span>
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
@@ -293,6 +311,33 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                   {req.address.unit ? ` - واحد ${req.address.unit}` : ''}
                 </span>
               </div>
+
+              {/* Cancellation Notice if Cancelled */}
+              {req.status === 'cancelled' && (
+                <div className="bg-rose-50/80 border border-rose-200 p-2.5 rounded-xl text-xs text-rose-900 space-y-1">
+                  <div className="flex items-center justify-between font-bold text-[11px]">
+                    <span className="flex items-center gap-1 text-rose-700">
+                      <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                      <span>لغو شده توسط: {req.cancellationDetails?.cancelledBy === 'driver' ? 'سفیر راننده' : req.cancellationDetails?.cancelledBy === 'admin' ? 'مدیریت سامانه' : 'شهروند'}</span>
+                    </span>
+                    {req.cancellationDetails?.cancelledAt && (
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        {toPersianDigits(new Date(req.cancellationDetails.cancelledAt).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }))}
+                      </span>
+                    )}
+                  </div>
+                  {req.cancellationDetails?.reason && (
+                    <p className="text-[11px] text-slate-700 bg-white/70 p-1.5 rounded-lg border border-rose-100">
+                      <strong>علت لغو:</strong> {req.cancellationDetails.reason}
+                    </p>
+                  )}
+                  {req.cancellationDetails?.previousDriverName && (
+                    <div className="text-[10px] text-slate-500">
+                      سفیر مربوطه: {req.cancellationDetails.previousDriverName}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Card Footer with Lottery Ticket & Actions */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-3 pt-2.5 border-t border-slate-100 text-xs">
@@ -309,10 +354,13 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                   )}
                 </div>
 
-                {req.status === 'pending' && (
+                {(req.status === 'pending' || req.status === 'assigned') && (
                   <button
-                    onClick={() => onCancelRequest(req.id)}
-                    className="text-xs text-rose-600 hover:text-rose-800 font-bold flex items-center gap-1 self-end sm:self-auto transition cursor-pointer"
+                    onClick={() => {
+                      setCancellingRequest(req);
+                      setCancelReason('');
+                    }}
+                    className="text-xs text-rose-600 hover:text-rose-800 font-bold flex items-center gap-1 self-end sm:self-auto transition cursor-pointer bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-xl border border-rose-200"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>لغو این درخواست</span>
@@ -323,6 +371,76 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
           ))}
         </div>
       )}
+
+      {/* Citizen Cancellation Modal with Optional Reason Input (Item 5) */}
+      {cancellingRequest && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4 text-right">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <XCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-sm sm:text-base text-slate-900">
+                  لغو نوبت جمع‌آوری پسماند
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5 font-mono">
+                  کد رهگیری: {cancellingRequest.trackingCode}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-2xl border border-slate-200">
+              آیا از لغو این نوبت اطمینان دارید؟ در صورت نیاز می‌توانید دلیل لغو درخواست را برای هماهنگی بهتر با تیم پاکینو یادداشت فرمایید.
+            </p>
+
+            <div>
+              <label htmlFor="cancel-reason-textarea" className="block text-xs font-bold text-slate-700 mb-1">
+                دلیل لغو نوبت (اختیاری):
+              </label>
+              <textarea
+                id="cancel-reason-textarea"
+                rows={3}
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="مثال: تغییر برنامه کاری، جمع‌آوری زودتر از موعد، اشتباه در انتخاب روز و..."
+                className="w-full p-3 bg-white border border-slate-300 rounded-2xl text-xs focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 text-slate-800"
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setCancellingRequest(null);
+                  setCancelReason('');
+                }}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition cursor-pointer"
+              >
+                انصراف و بازگشت
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onCancelRequest(cancellingRequest.id, cancelReason.trim() || undefined);
+                  setCancellingRequest(null);
+                  setCancelReason('');
+                }}
+                className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-2xl transition shadow-md cursor-pointer"
+              >
+                تایید لغو درخواست
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* GREEN RECYCLING CERTIFICATE & RECEIPT MODAL */}
+      <GreenReceiptModal
+        isOpen={!!selectedReceiptRequest}
+        onClose={() => setSelectedReceiptRequest(null)}
+        request={selectedReceiptRequest}
+      />
     </div>
   );
 };

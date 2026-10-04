@@ -36,6 +36,7 @@ import {
   generateLotteryCode
 } from '../utils/persian';
 import { InteractiveMap } from './InteractiveMap';
+import { checkShiftAvailability } from './admin/AdminCapacityShiftMatrix';
 
 interface NewPickupModalProps {
   isOpen: boolean;
@@ -75,8 +76,8 @@ export const NewPickupModal: React.FC<NewPickupModalProps> = ({
     initialProjectId || (activeCharityProjects.find(p => p.cityId === currentCity)?.id || activeCharityProjects[0]?.id)
   );
 
-  // Payout preference if cash
-  const [payoutMethod, setPayoutMethod] = useState<'wallet' | 'direct_card_transfer'>('direct_card_transfer');
+  // Payout preference if cash (Item 1: حذف کیف پول - فقط کارت‌به‌کارت و نقدی)
+  const [payoutMethod, setPayoutMethod] = useState<'direct_card_transfer' | 'cash_on_delivery'>('direct_card_transfer');
 
   // Saved Locations (Home, Work, Warehouse)
   const [savedLocationsList, setSavedLocationsList] = useState<SavedLocation[]>(
@@ -213,6 +214,19 @@ export const NewPickupModal: React.FC<NewPickupModalProps> = ({
       return;
     }
 
+    const activeDay = upcomingDays[selectedDayIndex] || upcomingDays[0];
+    const shiftCheck = checkShiftAvailability(
+      currentCity,
+      activeDay.dayName,
+      activeDay.dateStr,
+      selectedTimeSlotId,
+      existingRequests
+    );
+    if (!shiftCheck.isAvailable) {
+      setErrorMessage(shiftCheck.reason || 'ظرفیت این شیفت تکمیل شده است. لطفاً روز یا ساعت دیگری انتخاب نمایید.');
+      return;
+    }
+
     const recyclingId = generateRecyclingId();
     const lotteryCode = generateLotteryCode();
 
@@ -233,6 +247,7 @@ export const NewPickupModal: React.FC<NewPickupModalProps> = ({
       type: recyclingType,
       payoutMethod: recyclingType === 'cash' ? payoutMethod : undefined,
       dateStr: selectedDay.dateStr,
+      rawDateKey: selectedDay.rawDateKey,
       dayOfWeek: selectedDay.dayName,
       timeSlot: selectedSlot.timeRange,
       timeSlotId: selectedTimeSlotId,
@@ -268,11 +283,11 @@ export const NewPickupModal: React.FC<NewPickupModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200 my-auto animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-hidden">
+      <div className="bg-white rounded-3xl max-w-lg w-full h-[94vh] sm:h-auto sm:max-h-[90vh] overflow-hidden shadow-2xl border border-slate-200 flex flex-col my-auto animate-in zoom-in-95 duration-200">
         
         {/* Modal Header */}
-        <div className="bg-gradient-to-r from-emerald-800 to-teal-900 text-white p-4 sm:p-5 flex items-center justify-between">
+        <div className="shrink-0 bg-gradient-to-r from-emerald-800 to-teal-900 text-white p-4 sm:p-5 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20">
               <Sparkles className="w-5 h-5 text-emerald-300" />
@@ -298,7 +313,7 @@ export const NewPickupModal: React.FC<NewPickupModalProps> = ({
 
         {/* Stepper Indicator */}
         {currentStep < 4 && (
-          <div className="bg-slate-50 border-b border-slate-200 px-4 py-2.5 flex items-center justify-between text-xs">
+          <div className="shrink-0 bg-slate-50 border-b border-slate-200 px-4 py-2.5 flex items-center justify-between text-xs">
             <span className={`font-black flex items-center gap-1.5 ${currentStep >= 1 ? 'text-emerald-800' : 'text-slate-400'}`}>
               <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[10px]">۱</span>
               <span>نوع تسویه</span>
@@ -316,9 +331,11 @@ export const NewPickupModal: React.FC<NewPickupModalProps> = ({
           </div>
         )}
 
-        {/* STEP 1: TYPE (CHARITY vs CASH) */}
-        {currentStep === 1 && (
-          <div className="p-5 space-y-4">
+        {/* Scrollable Modal Body (Item 12: محتوا جدا اسکرول می‌شود) */}
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {/* STEP 1: TYPE (CHARITY vs CASH) */}
+          {currentStep === 1 && (
+            <div className="p-4 sm:p-5 space-y-4">
             <div className="text-xs font-black text-slate-800">
               مایcounter-reset: قصد دارید درآمد حاصل از بازیافت چگونه تخصیص یابد؟
             </div>
@@ -358,15 +375,15 @@ export const NewPickupModal: React.FC<NewPickupModalProps> = ({
               >
                 <div>
                   <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center mb-2">
-                    <Banknote className="w-5 h-5" />
+                    <CreditCard className="w-5 h-5" />
                   </div>
-                  <div className="font-black text-xs sm:text-sm text-slate-900">دریافت نقد / کارت‌به‌کارت</div>
+                  <div className="font-black text-xs sm:text-sm text-slate-900">دریافت وجه (کارت‌به‌کارت)</div>
                   <p className="text-[10px] text-slate-500 mt-1">
-                    پرداخت آنی در محل توسط سفیر پاکینو
+                    واریز کارت‌به‌کارت آنی توسط سفیر پاکینو هنگام تحویل پسماند
                   </p>
                 </div>
                 <div className="mt-3 pt-2 border-t border-emerald-200/60 text-[10px] font-black text-emerald-800">
-                  ⚡ واریز آنی یا شارژ کیف پول
+                  ⚡ واریز کارت‌به‌کارت مستقیم توسط راننده
                 </div>
               </button>
             </div>
@@ -392,7 +409,7 @@ export const NewPickupModal: React.FC<NewPickupModalProps> = ({
                   >
                     {activeCharityProjects.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.title} - ({p.cityName} | {p.categoryName || 'طرح شهری'})
+                        {p.title} - ({p.cityName} | {p.badge || 'طرح شهری'})
                       </option>
                     ))}
                   </select>
@@ -411,7 +428,7 @@ export const NewPickupModal: React.FC<NewPickupModalProps> = ({
                         <div className="font-black text-slate-900 text-xs truncate">{currProj.title}</div>
                         <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">{currProj.description}</p>
                         <div className="mt-1 text-[10px] text-rose-700 font-bold">
-                          سازمان مجری: {currProj.organizationName || 'انجمن حامیان سبز و نیکوکاری'}
+                          شهر مجری: {currProj.cityName}
                         </div>
                       </div>
                     </div>
@@ -422,54 +439,17 @@ export const NewPickupModal: React.FC<NewPickupModalProps> = ({
 
             {/* Direct Payout Preference if Cash */}
             {recyclingType === 'cash' && (
-              <div className="bg-emerald-50/70 p-3.5 rounded-2xl border border-emerald-200 space-y-2">
-                <label className="block text-xs font-black text-emerald-900">
-                  روش دریافت وجه:
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPayoutMethod('direct_card_transfer')}
-                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                      payoutMethod === 'direct_card_transfer'
-                        ? 'bg-white text-emerald-900 border-emerald-500 shadow-2xs'
-                        : 'bg-white/60 text-slate-600 border-emerald-200'
-                    }`}
-                  >
-                    <CreditCard className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>کارت‌به‌کارت مستقیم راننده</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setPayoutMethod('wallet')}
-                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                      payoutMethod === 'wallet'
-                        ? 'bg-white text-emerald-900 border-emerald-500 shadow-2xs'
-                        : 'bg-white/60 text-slate-600 border-emerald-200'
-                    }`}
-                  >
-                    <Banknote className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>شارژ کیف پول پاکینو</span>
-                  </button>
-                </div>
+              <div className="bg-emerald-50/70 p-3.5 rounded-2xl border border-emerald-200 text-xs text-emerald-900 font-bold flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>تسویه وجه به صورت کارت‌به‌کارت مستقیم توسط سفیر پاکینو هنگام تحویل انجام می‌شود.</span>
               </div>
             )}
-
-            <button
-              type="button"
-              onClick={handleProceedToLocation}
-              className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-2xl transition shadow-md flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <span>مرحله بعد: تعیین آدرس و موقعیت</span>
-              <ArrowLeft className="w-4 h-4" />
-            </button>
           </div>
         )}
 
         {/* STEP 2: LOCATION & SAVED ADDRESSES */}
         {currentStep === 2 && (
-          <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+          <div className="p-4 sm:p-5 space-y-4">
             {/* Quick Saved Locations Picker */}
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
@@ -606,30 +586,12 @@ export const NewPickupModal: React.FC<NewPickupModalProps> = ({
                 {errorMessage}
               </p>
             )}
-
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setCurrentStep(1)}
-                className="py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition cursor-pointer"
-              >
-                بازگشت
-              </button>
-              <button
-                type="button"
-                onClick={handleProceedToSchedule}
-                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs sm:text-sm rounded-2xl transition shadow-md flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <span>مرحله بعد: زمان و وزن بازیافت</span>
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-            </div>
           </div>
         )}
 
         {/* STEP 3: SCHEDULE & WEIGHT */}
         {currentStep === 3 && (
-          <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+          <div className="p-4 sm:p-5 space-y-4">
             {/* Day Selector (All 7 Days: شنبه تا جمعه) */}
             <div>
               <div className="flex items-center justify-between mb-2">
@@ -645,6 +607,12 @@ export const NewPickupModal: React.FC<NewPickupModalProps> = ({
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2">
                 {upcomingDays.map((d, index) => {
                   const isSelected = selectedDayIndex === index;
+                  // Check if day has any available slot
+                  const isAllSlotsClosed = TIME_SLOTS.every((s) => {
+                    const chk = checkShiftAvailability(currentCity, d.dayName, d.dateStr, s.id, existingRequests);
+                    return !chk.isAvailable;
+                  });
+
                   return (
                     <button
                       key={index}
@@ -653,6 +621,8 @@ export const NewPickupModal: React.FC<NewPickupModalProps> = ({
                       className={`p-2 sm:p-2.5 rounded-2xl border text-center transition cursor-pointer flex flex-col items-center justify-center relative ${
                         isSelected
                           ? 'bg-gradient-to-b from-emerald-600 to-emerald-700 text-white border-emerald-600 shadow-md ring-2 ring-emerald-400/40'
+                          : isAllSlotsClosed
+                          ? 'bg-slate-100 text-slate-400 border-dashed border-slate-300'
                           : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100/90'
                       }`}
                     >
@@ -670,6 +640,11 @@ export const NewPickupModal: React.FC<NewPickupModalProps> = ({
                           فردا
                         </span>
                       )}
+                      {isAllSlotsClosed && (
+                        <span className="text-[7px] font-bold text-rose-500 bg-rose-50 px-1 rounded-full mb-0.5">
+                          تعطیل
+                        </span>
+                      )}
                       <div className="font-black text-xs">{d.dayName}</div>
                       <div className={`text-[10px] mt-0.5 font-medium ${isSelected ? 'text-emerald-100' : 'text-slate-500'}`}>
                         {toPersianDigits(d.dayNumber)} {d.monthName}
@@ -680,27 +655,63 @@ export const NewPickupModal: React.FC<NewPickupModalProps> = ({
               </div>
             </div>
 
-            {/* Time Slot */}
+            {/* Time Slot with 7x4 Capacity Shift Matrix Check */}
             <div>
-              <label className="block text-xs font-black text-slate-800 mb-1.5">
-                بازه زمانی مراجعه:
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {TIME_SLOTS.map((slot) => (
-                  <button
-                    key={slot.id}
-                    type="button"
-                    onClick={() => setSelectedTimeSlotId(slot.id)}
-                    className={`p-2.5 rounded-2xl border text-center transition cursor-pointer ${
-                      selectedTimeSlotId === slot.id
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    <div className="font-black text-xs">{slot.label}</div>
-                    <div className="text-[10px] opacity-80 mt-0.5">{toPersianDigits(slot.timeRange)}</div>
-                  </button>
-                ))}
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-black text-slate-800">
+                  بازه زمانی مراجعه:
+                </label>
+                <span className="text-[10px] text-slate-500 font-bold">
+                  پایش ظرفیت برخط ناوگان
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {TIME_SLOTS.map((slot) => {
+                  const currentDayObj = upcomingDays[selectedDayIndex] || upcomingDays[0];
+                  const slotAvailability = checkShiftAvailability(
+                    currentCity, 
+                    currentDayObj.dayName, 
+                    currentDayObj.dateStr, 
+                    slot.id, 
+                    existingRequests
+                  );
+                  const isAvailable = slotAvailability.isAvailable;
+                  const isSelected = selectedTimeSlotId === slot.id;
+
+                  return (
+                    <button
+                      key={slot.id}
+                      type="button"
+                      disabled={!isAvailable}
+                      onClick={() => isAvailable && setSelectedTimeSlotId(slot.id)}
+                      className={`p-2.5 rounded-2xl border text-center transition flex flex-col items-center justify-center relative ${
+                        !isAvailable
+                          ? 'bg-slate-100/80 text-slate-400 border-dashed border-slate-300 cursor-not-allowed opacity-75'
+                          : isSelected
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs cursor-pointer'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 cursor-pointer'
+                      }`}
+                    >
+                      <div className="font-black text-xs">{slot.label}</div>
+                      <div className={`text-[10px] mt-0.5 ${isSelected ? 'text-emerald-100' : 'opacity-80'}`}>
+                        {toPersianDigits(slot.timeRange)}
+                      </div>
+
+                      {/* Capacity / Status Badge */}
+                      {!isAvailable ? (
+                        <span className="text-[9px] font-black mt-1 bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full">
+                          {slotAvailability.reason || 'تکمیل ظرفیت'}
+                        </span>
+                      ) : slotAvailability.remainingRequests <= 3 ? (
+                        <span className={`text-[9px] font-bold mt-1 px-1.5 py-0.5 rounded-full ${
+                          isSelected ? 'bg-amber-400 text-amber-950 font-black' : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          تنها {toPersianDigits(slotAvailability.remainingRequests)} نوبت خالی
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -773,24 +784,6 @@ export const NewPickupModal: React.FC<NewPickupModalProps> = ({
                 {errorMessage}
               </p>
             )}
-
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setCurrentStep(2)}
-                className="py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition cursor-pointer"
-              >
-                بازگشت
-              </button>
-              <button
-                type="button"
-                onClick={handleCreateRequest}
-                className="flex-1 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs sm:text-sm rounded-2xl transition shadow-md flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Check className="w-4 h-4" />
-                <span>ثبت نهایی و دریافت کد رهگیری</span>
-              </button>
-            </div>
           </div>
         )}
 
@@ -872,6 +865,55 @@ export const NewPickupModal: React.FC<NewPickupModalProps> = ({
                 </button>
               </div>
             </div>
+          </div>
+        )}
+        </div>
+
+        {/* Fixed Sticky Footer for Steps 1, 2, 3 (Item 12: موقعیت ثابت، بدون نیاز به اسکرول در انتخاب لوکیشن و سازگار با safe-area موبایل) */}
+        {currentStep < 4 && (
+          <div className="shrink-0 bg-white/95 backdrop-blur-md border-t border-slate-200 p-3 sm:p-4 z-20 flex gap-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-xs">
+            {currentStep > 1 && (
+              <button
+                type="button"
+                onClick={() => setCurrentStep((prev) => (prev - 1) as 1 | 2 | 3)}
+                className="py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm rounded-2xl transition cursor-pointer"
+              >
+                بازگشت
+              </button>
+            )}
+
+            {currentStep === 1 && (
+              <button
+                type="button"
+                onClick={handleProceedToLocation}
+                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs sm:text-sm rounded-2xl transition shadow-md flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>مرحله بعد: تعیین آدرس و موقعیت</span>
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+            )}
+
+            {currentStep === 2 && (
+              <button
+                type="button"
+                onClick={handleProceedToSchedule}
+                className="flex-1 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs sm:text-sm rounded-2xl transition shadow-md flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>مرحله بعد: زمان و وزن بازیافت</span>
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+            )}
+
+            {currentStep === 3 && (
+              <button
+                type="button"
+                onClick={handleCreateRequest}
+                className="flex-1 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs sm:text-sm rounded-2xl transition shadow-md flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Check className="w-4 h-4" />
+                <span>ثبت نهایی و دریافت کد رهگیری</span>
+              </button>
+            )}
           </div>
         )}
 

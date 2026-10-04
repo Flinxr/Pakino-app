@@ -12,7 +12,10 @@ import {
   Sparkles,
   HeartHandshake,
   Sliders,
-  Coins
+  Coins,
+  ClipboardList,
+  MapPin,
+  History as HistoryIcon
 } from 'lucide-react';
 import { 
   CityId, 
@@ -32,12 +35,19 @@ import { toPersianDigits } from '../utils/persian';
 
 // Modular Admin Views
 import { AdminOverviewDashboard } from './admin/AdminOverviewDashboard';
+import { AdminRequestsLifecycleManager } from './admin/AdminRequestsLifecycleManager';
 import { AdminLotteryManager } from './admin/AdminLotteryManager';
 import { AdminFleetManager } from './admin/AdminFleetManager';
 import { AdminCitizenManager } from './admin/AdminCitizenManager';
 import { AdminCharityManager } from './admin/AdminCharityManager';
 import { AdminHeroSlidesManager } from './admin/AdminHeroSlidesManager';
 import { AdminTariffManager } from './admin/AdminTariffManager';
+import { AdminCapacityShiftMatrix } from './admin/AdminCapacityShiftMatrix';
+import { AdminGeofenceManager } from './admin/AdminGeofenceManager';
+import { AdminDriverDailyStats } from './admin/AdminDriverDailyStats';
+import { AdminEventLogsManager } from './admin/AdminEventLogsManager';
+import { AdminFeedbackPollsManager } from './admin/AdminFeedbackPollsManager';
+import { ErrorBoundary } from './ErrorBoundary';
 
 interface AdminPanelProps {
   currentCity: CityId;
@@ -82,15 +92,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onUpdateWasteCategories = () => {},
   onAnnounceResetTickets
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'tariffs' | 'lottery_engine' | 'charity' | 'hero_slides' | 'fleet' | 'citizens' | 'capacity'>('overview');
-
-  // Capacity & Holiday Toggles
-  const [slotCapacities, setSlotCapacities] = useState<Record<string, number>>({
-    morning: 400,
-    afternoon: 400,
-    evening: 300
-  });
-  const [isHolidayShutdown, setIsHolidayShutdown] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<'overview' | 'driver_daily_stats' | 'event_logs' | 'requests_lifecycle' | 'tariffs' | 'hero_slides' | 'lottery_engine' | 'charity' | 'fleet' | 'citizens' | 'feedback_polls' | 'capacity' | 'geofence'>('overview');
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -128,14 +130,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       {/* Tabs Navigation */}
       <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl gap-1 text-xs overflow-x-auto shadow-inner">
         {[
-          { id: 'overview', label: 'داشبورد و تحلیل‌ها', icon: BarChart3 },
-          { id: 'tariffs', label: 'تعرفه و نرخ مصوب بازیافت', icon: Coins },
-          { id: 'hero_slides', label: 'بنرها و اسلایدر صفحه اصلی', icon: Sliders },
-          { id: 'lottery_engine', label: 'مدیریت و زمان‌بندی قرعه‌کشی', icon: Trophy },
-          { id: 'charity', label: 'پروژه‌های مسئولیت اجتماعی و نیکوکاری', icon: HeartHandshake },
-          { id: 'fleet', label: 'مدیریت رانندگان و لاگ عامیانه', icon: Truck },
-          { id: 'citizens', label: 'پرونده شهروندان (نقدی/نیکوکاری)', icon: Users },
-          { id: 'capacity', label: 'تنظیم ظرفیت و تعطیلات', icon: Calendar }
+          { id: 'overview', label: 'داشبورد عمومی', icon: BarChart3 },
+          { id: 'driver_daily_stats', label: 'آمار رانندگان', icon: Truck },
+          { id: 'event_logs', label: 'لاگ رویدادها', icon: HistoryIcon },
+          { id: 'requests_lifecycle', label: 'درخواست‌ها', icon: ClipboardList },
+          { id: 'tariffs', label: 'تعرفه پسماند', icon: Coins },
+          { id: 'hero_slides', label: 'اسلایدر صفحه اصلی', icon: Sliders },
+          { id: 'lottery_engine', label: 'قرعه‌کشی', icon: Trophy },
+          { id: 'charity', label: 'پروژه‌های نیکوکاری', icon: HeartHandshake },
+          { id: 'fleet', label: 'مدیریت ناوگان', icon: Truck },
+          { id: 'citizens', label: 'شهروندان', icon: Users },
+          { id: 'feedback_polls', label: 'نظرسنجی و پشتیبانی', icon: ClipboardList },
+          { id: 'capacity', label: 'شیفت‌ها و ظرفیت', icon: Calendar },
+          { id: 'geofence', label: 'محدوده چندضلعی', icon: MapPin }
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -159,140 +166,155 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       {/* TAB 1: OVERVIEW DASHBOARD */}
       {activeTab === 'overview' && (
-        <AdminOverviewDashboard
-          currentCity={currentCity}
-          requests={requests}
-          drivers={drivers}
-          users={users}
-        />
+        <ErrorBoundary fallbackTitle="خطا در بارگذاری داشبورد آمار و تحلیل‌ها">
+          <AdminOverviewDashboard
+            currentCity={currentCity}
+            requests={requests}
+            drivers={drivers}
+            users={users}
+          />
+        </ErrorBoundary>
+      )}
+
+      {/* TAB: DRIVER DAILY STATS (ITEM 7) */}
+      {activeTab === 'driver_daily_stats' && (
+        <ErrorBoundary fallbackTitle="خطا در بارگذاری آمار تفکیکی روزانه رانندگان">
+          <AdminDriverDailyStats
+            currentCity={currentCity}
+            requests={requests}
+            drivers={drivers}
+          />
+        </ErrorBoundary>
+      )}
+
+      {/* TAB: COMPREHENSIVE EVENT LOGS AUDIT (ITEM 8) */}
+      {activeTab === 'event_logs' && (
+        <ErrorBoundary fallbackTitle="خطا در بارگذاری سامانه لاگ و وقایع">
+          <AdminEventLogsManager
+            currentCity={currentCity}
+          />
+        </ErrorBoundary>
+      )}
+
+      {/* TAB: REQUESTS LIFECYCLE & CANCELLATIONS AUDIT */}
+      {activeTab === 'requests_lifecycle' && (
+        <ErrorBoundary fallbackTitle="خطا در بارگذاری چرخه حیات درخواست‌ها">
+          <AdminRequestsLifecycleManager
+            currentCity={currentCity}
+            requests={requests}
+          />
+        </ErrorBoundary>
       )}
 
       {/* TAB: WASTE TARIFFS & APPROVED PRICES MANAGER */}
       {activeTab === 'tariffs' && (
-        <AdminTariffManager
-          wasteCategories={wasteCategories}
-          onUpdateWasteCategories={onUpdateWasteCategories}
-        />
+        <ErrorBoundary fallbackTitle="خطا در بارگذاری تعرفه‌ها و نرخ مصوب">
+          <AdminTariffManager
+            wasteCategories={wasteCategories}
+            onUpdateWasteCategories={onUpdateWasteCategories}
+          />
+        </ErrorBoundary>
       )}
 
       {/* TAB 2: HERO SLIDES & BANNERS MANAGER */}
       {activeTab === 'hero_slides' && (
-        <AdminHeroSlidesManager
-          currentCity={currentCity}
-          slides={heroSlides}
-          onUpdateSlides={(updated) => {
-            if (onUpdateHeroSlides) {
-              onUpdateHeroSlides(updated);
-            }
-          }}
-        />
+        <ErrorBoundary fallbackTitle="خطا در بارگذاری اسلایدرها و بنرها">
+          <AdminHeroSlidesManager
+            currentCity={currentCity}
+            slides={heroSlides}
+            onUpdateSlides={(updated) => {
+              if (onUpdateHeroSlides) {
+                onUpdateHeroSlides(updated);
+              }
+            }}
+          />
+        </ErrorBoundary>
       )}
 
       {/* TAB 2: SCHEDULED LOTTERY & REWARDS MANAGER */}
       {activeTab === 'lottery_engine' && (
-        <AdminLotteryManager
-          currentCity={currentCity}
-          requests={requests}
-          users={users}
-          scheduledLotteries={scheduledLotteries}
-          liveEventLottery={liveEventLottery}
-          winnersList={winnersList}
-          onUpdateScheduledLotteries={onUpdateScheduledLotteries}
-          onUpdateLiveEventLottery={onUpdateLiveEventLottery}
-          onAddWinner={(newWinner) => onUpdateWinnersList([newWinner, ...winnersList])}
-          onResetPreviousTickets={onAnnounceResetTickets}
-        />
+        <ErrorBoundary fallbackTitle="خطا در بارگذاری مدیریت قرعه‌کشی">
+          <AdminLotteryManager
+            currentCity={currentCity}
+            requests={requests}
+            users={users}
+            scheduledLotteries={scheduledLotteries}
+            liveEventLottery={liveEventLottery}
+            winnersList={winnersList}
+            onUpdateScheduledLotteries={onUpdateScheduledLotteries}
+            onUpdateLiveEventLottery={onUpdateLiveEventLottery}
+            onAddWinner={(newWinner) => onUpdateWinnersList([newWinner, ...winnersList])}
+            onResetPreviousTickets={onAnnounceResetTickets}
+          />
+        </ErrorBoundary>
       )}
 
       {/* TAB 3: CHARITY & CSR PROJECTS MANAGER */}
       {activeTab === 'charity' && (
-        <AdminCharityManager
-          currentCity={currentCity}
-          projects={charityProjects}
-          onUpdateProjects={(updated) => {
-            if (onUpdateCharityProjects) {
-              onUpdateCharityProjects(updated);
-            }
-          }}
-        />
+        <ErrorBoundary fallbackTitle="خطا در بارگذاری پروژه‌های نیکوکاری">
+          <AdminCharityManager
+            currentCity={currentCity}
+            projects={charityProjects}
+            requests={requests}
+            onUpdateProjects={(updated) => {
+              if (onUpdateCharityProjects) {
+                onUpdateCharityProjects(updated);
+              }
+            }}
+          />
+        </ErrorBoundary>
       )}
 
       {/* TAB 3: FLEET MANAGER WITH CONVERSATIONAL LOGS */}
       {activeTab === 'fleet' && (
-        <AdminFleetManager
-          currentCity={currentCity}
-          drivers={drivers}
-          requests={requests}
-          onUpdateDrivers={onUpdateDrivers}
-        />
+        <ErrorBoundary fallbackTitle="خطا در بارگذاری مدیریت ناوگان رانندگان">
+          <AdminFleetManager
+            currentCity={currentCity}
+            drivers={drivers}
+            requests={requests}
+            onUpdateDrivers={onUpdateDrivers}
+          />
+        </ErrorBoundary>
       )}
 
       {/* TAB 4: CITIZEN DOSSIERS (CHARITY VS CASH) */}
       {activeTab === 'citizens' && (
-        <AdminCitizenManager
-          currentCity={currentCity}
-          users={users}
-          requests={requests}
-          onUpdateUsers={onUpdateUsers}
-        />
+        <ErrorBoundary fallbackTitle="خطا در بارگذاری پرونده شهروندان">
+          <AdminCitizenManager
+            currentCity={currentCity}
+            users={users}
+            requests={requests}
+            onUpdateUsers={onUpdateUsers}
+          />
+        </ErrorBoundary>
       )}
 
-      {/* TAB 5: CAPACITY & HOLIDAY SHUTDOWN */}
+      {/* TAB: FEEDBACK & CITIZEN POLLS MANAGER (Item 13) */}
+      {activeTab === 'feedback_polls' && (
+        <ErrorBoundary fallbackTitle="خطا در بارگذاری سامانه نظرسنجی و پشتیبانی">
+          <AdminFeedbackPollsManager
+            currentCity={currentCity}
+          />
+        </ErrorBoundary>
+      )}
+
+      {/* TAB 5: 7x4 SHIFT CAPACITY & DATE EXCEPTIONS (Item 9) */}
       {activeTab === 'capacity' && (
-        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-2xs space-y-5 animate-in fade-in">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-            <div className="flex items-center gap-2.5">
-              <Calendar className="w-5 h-5 text-indigo-600" />
-              <div>
-                <h3 className="font-black text-sm text-slate-900">مدیریت سقف ظرفیت شیفت‌ها و تعطیلات اضطراری</h3>
-                <p className="text-xs text-slate-500">تنظیم سقف مجاز دریافت پسماند در هر بازه زمانی</p>
-              </div>
-            </div>
-            <span className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-xl">
-              شهر: {CITIES[currentCity]?.name}
-            </span>
-          </div>
+        <ErrorBoundary fallbackTitle="خطا در بارگذاری ماتریس ظرفیت و شیفت‌ها">
+          <AdminCapacityShiftMatrix
+            currentCity={currentCity}
+            requests={requests}
+          />
+        </ErrorBoundary>
+      )}
 
-          {/* Holiday Toggle */}
-          <div className="p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 border-slate-200">
-            <div>
-              <div className="font-black text-xs sm:text-sm text-slate-900">وضعیت سرویس‌دهی شهر:</div>
-              <p className="text-xs text-slate-500 mt-0.5">در صورت تعطیلی، امکان ثبت درخواست جدید توسط شهروندان موقتاً غیرفعال خواهد بود.</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsHolidayShutdown(!isHolidayShutdown)}
-              className={`px-5 py-2.5 rounded-xl text-xs font-black transition cursor-pointer shadow-xs ${
-                isHolidayShutdown ? 'bg-rose-600 hover:bg-rose-700 text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-              }`}
-            >
-              {isHolidayShutdown ? '⛔ سرویس‌دهی متوقف است' : '✅ سرویس‌دهی فعال است'}
-            </button>
-          </div>
-
-          {/* Capacity settings per slot */}
-          <div className="space-y-3 pt-2">
-            <h4 className="font-black text-xs text-slate-800">حداکثر سقف مجاز جمع‌آوری ناوگان در هر شیفت (کیلوگرم):</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {TIME_SLOTS.map((slot) => (
-                <div key={slot.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-                  <div className="font-black text-xs text-slate-900 flex items-center justify-between">
-                    <span>شیفت {slot.label}</span>
-                    <span className="text-[10px] text-slate-500 font-mono">{slot.timeRange}</span>
-                  </div>
-                  <input
-                    type="number"
-                    step="50"
-                    value={slotCapacities[slot.id] || 400}
-                    onChange={(e) => setSlotCapacities({ ...slotCapacities, [slot.id]: Number(e.target.value) })}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono font-black text-center text-slate-900 shadow-xs"
-                  />
-                  <div className="text-[10px] text-slate-500 text-center">سقف مجاز پذیرش سفارش (کیلوگرم)</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+      {/* TAB 6: GEOFENCE POLYGON MANAGER (Item 10) */}
+      {activeTab === 'geofence' && (
+        <ErrorBoundary fallbackTitle="خطا در بارگذاری محدوده چندضلعی شهر">
+          <AdminGeofenceManager
+            currentCity={currentCity}
+          />
+        </ErrorBoundary>
       )}
     </div>
   );

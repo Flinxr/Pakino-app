@@ -168,7 +168,7 @@ export const AdminOverviewDashboard: React.FC<AdminOverviewDashboardProps> = ({
           </div>
 
           <div className="h-56 sm:h-64 w-full pt-2">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={200}>
               <AreaChart data={weeklyTrends}>
                 <defs>
                   <linearGradient id="charityGrad" x1="0" y1="0" x2="0" y2="1">
@@ -204,7 +204,7 @@ export const AdminOverviewDashboard: React.FC<AdminOverviewDashboardProps> = ({
           </div>
 
           <div className="h-44 w-full relative flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={160}>
               <PieChart>
                 <Pie
                   data={pieData}

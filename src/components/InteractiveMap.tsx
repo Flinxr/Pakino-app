@@ -3,6 +3,7 @@ import { MapPin, Navigation, AlertTriangle, CheckCircle2, Crosshair } from 'luci
 import { CityId } from '../types';
 import { CITIES } from '../data/cities';
 import { checkInsideCityBoundary, toPersianDigits } from '../utils/persian';
+import { getCityPolygon } from '../utils/polygonGeofence';
 import L from 'leaflet';
 
 interface InteractiveMapProps {
@@ -29,7 +30,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
-  const circleRef = useRef<L.Circle | null>(null);
+  const polygonRef = useRef<L.Polygon | null>(null);
 
   const city = CITIES[cityId] || CITIES.noorabad;
 
@@ -94,14 +95,13 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       draggable: true
     }).addTo(map);
 
-    // Add service boundary circle
-    const circle = L.circle([city.center.lat, city.center.lng], {
-      radius: city.maxRadiusKm * 1000,
-      color: '#10b981',
+    // Add service boundary polygon (Item 10: چندضلعی محدوده سرویس‌دهی)
+    const polygonCoords = getCityPolygon(cityId);
+    const polygon = L.polygon(polygonCoords, {
+      color: '#059669',
       fillColor: '#10b981',
-      fillOpacity: 0.08,
-      weight: 2,
-      dashArray: '6, 6'
+      fillOpacity: 0.12,
+      weight: 2.5
     }).addTo(map);
 
     // Map click handler
@@ -119,7 +119,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
     mapInstanceRef.current = map;
     markerRef.current = marker;
-    circleRef.current = circle;
+    polygonRef.current = polygon;
 
     return () => {
       map.remove();

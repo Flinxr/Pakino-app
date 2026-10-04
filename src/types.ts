@@ -10,6 +10,7 @@ export interface CityInfo {
   maxRadiusKm: number;
   neighborhoods: string[];
   charities: string[];
+  supportPhone?: string;
 }
 
 export type RecyclingType = 'charity' | 'cash';
@@ -71,6 +72,37 @@ export interface SavedLocation {
   notes?: string;
 }
 
+export interface WeighedItem {
+  categoryId: string;
+  categoryName: string;
+  weightKg: number;
+  ratePerKgTomans: number;
+  subtotalTomans: number;
+}
+
+export interface CancellationInfo {
+  cancelledBy: 'citizen' | 'driver' | 'admin';
+  cancelledById?: string;
+  cancelledByName?: string;
+  cancelledAt: string; // ISO string
+  reason?: string;
+  previousDriverId?: string;
+  previousDriverName?: string;
+  citizenId?: string;
+  citizenName?: string;
+  citizenPhone?: string;
+}
+
+export interface RequestStatusLog {
+  id: string;
+  status: RequestStatus;
+  statusTitle: string;
+  timestamp: string; // ISO string
+  changedByRole: 'citizen' | 'driver' | 'admin' | 'system';
+  changedByName?: string;
+  note?: string;
+}
+
 export interface DriverRatingFeedback {
   requestId: string;
   driverId: string;
@@ -90,8 +122,9 @@ export interface PickupRequest {
   cityId: CityId;
   cityName: string;
   type: RecyclingType;
-  payoutMethod?: 'wallet' | 'direct_card_transfer' | 'cash_on_delivery';
+  payoutMethod?: 'direct_card_transfer' | 'cash_on_delivery' | 'wallet';
   dateStr: string; // e.g. "شنبه ۱۷ شهریور ۱۴۰۵"
+  rawDateKey?: string;
   dayOfWeek: string;
   timeSlot: string; // e.g. "۹ تا ۱۲"
   timeSlotId: TimeSlotId;
@@ -114,6 +147,7 @@ export interface PickupRequest {
   lotteryTicketNumber: string;
   charityName?: string;
   charityProjectId?: string;
+  charityDonationAmountTomans?: number;
   driverId?: string;
   driverName?: string;
   driverPhone?: string;
@@ -121,7 +155,13 @@ export interface PickupRequest {
   vehiclePlate?: string; // e.g. "ایران ۷۳ - ۴۵۶ ج ۱۲"
   collectedAt?: string;
   cashPaidTomans?: number;
-  paymentModeUsed?: 'wallet' | 'direct_card' | 'cash';
+  paymentModeUsed?: 'direct_card' | 'cash' | 'wallet';
+  finalPayoutTomans?: number;
+  categoryNames?: string[];
+  neighborhood?: string;
+  charityProjectName?: string;
+  scheduledDate?: string;
+  timeSlotLabel?: string;
   driverNote?: string; // Driver custom note on request
   issueFlag?: 'none' | 'citizen_absent' | 'waste_unprepared' | 'wrong_address';
   rating?: number; // 1-5 stars citizen feedback to driver
@@ -130,6 +170,15 @@ export interface PickupRequest {
   driverNoteToCitizen?: string;
   citizenRatingToDriver?: number; // 1-5 stars citizen feedback to driver
   citizenCommentToDriver?: string;
+  cancellationDetails?: CancellationInfo;
+  cancellationHistory?: CancellationInfo[];
+  statusHistory?: RequestStatusLog[];
+  weighedItems?: WeighedItem[];
+  convertedToCharityMidway?: boolean;
+  convertedToCharityAt?: string;
+  convertedToCharityNote?: string;
+  convertedToCharityCharityName?: string;
+  cardTransferRefCode?: string;
 }
 
 export interface UserProfile {
@@ -229,6 +278,12 @@ export interface LotteryWinner {
   cityId: CityId;
   cityName: string;
   awardedAt: string;
+  status?: 'claimed' | 'absent' | 'replaced' | 'pending';
+  isAbsent?: boolean;
+  absentMarkedAt?: string;
+  absentReason?: string;
+  replacementForWinnerId?: string;
+  replacedByWinnerId?: string;
 }
 
 export interface LotteryPrizeConfig {
@@ -258,7 +313,7 @@ export interface ScheduledLottery {
 
 export interface LiveEventLottery {
   id: string;
-  eventCode: string; // e.g. "110"
+  eventCode: string; // e.g. "110", "724", "GOLD2026"
   eventTitle: string; // e.g. "جشن بزرگ روز پدر و پاکیاران نورآباد"
   description: string;
   cityId: CityId | 'all';
@@ -266,6 +321,11 @@ export interface LiveEventLottery {
   prizeSummary: string;
   prizesList?: string[];
   eventDateStr?: string;
+  startDate?: string; // YYYY-MM-DD
+  startTime?: string; // HH:mm
+  endDate?: string; // YYYY-MM-DD
+  endTime?: string; // HH:mm
+  status?: 'active' | 'scheduled' | 'ended';
   locationVenue?: string;
   participantsCount: number;
   registeredPhoneNumbers: string[];
@@ -280,17 +340,50 @@ export interface AdminCapacitySetting {
   emergencyLimitKg?: number;
 }
 
+export interface TicketMessage {
+  id: string;
+  sender: 'citizen' | 'admin';
+  senderName: string;
+  text: string;
+  createdAt: string;
+}
+
 export interface FeedbackItem {
   id: string;
+  ticketNumber?: string;
   userName: string;
   userPhone: string;
   cityId: CityId;
   category: 'suggestion' | 'complaint' | 'question' | 'driver_tip' | 'other';
   message: string;
   createdAt: string;
-  status: 'received' | 'answered';
+  status: 'received' | 'in_review' | 'answered' | 'closed';
   driverId?: string;
   isAnonymous?: boolean;
+  adminReply?: string;
+  repliedAt?: string;
+  repliedBy?: string;
+  messages?: TicketMessage[];
+}
+
+export interface CitizenPollOption {
+  id: string;
+  text: string;
+  votesCount: number;
+}
+
+export interface CitizenPoll {
+  id: string;
+  title: string;
+  description?: string;
+  cityId: CityId | 'all';
+  isActive: boolean;
+  startDate: string;
+  endDate: string;
+  options: CitizenPollOption[];
+  totalVotes: number;
+  votedUserIds?: string[];
+  category?: 'service_quality' | 'schedule' | 'app_features' | 'general';
 }
 
 export interface HeroSlide {
@@ -305,9 +398,91 @@ export interface HeroSlide {
   textColor?: 'light' | 'dark';
   iconName: string;
   actionText?: string;
-  actionType: 'pickup' | 'lottery' | 'wallet' | 'share' | 'feedback' | 'charity';
+  actionType: 'pickup' | 'lottery' | 'wallet' | 'share' | 'feedback' | 'charity' | 'custom_url';
+  customUrl?: string;
   isActive: boolean;
   order: number;
+  imageUrl?: string;
+  aspectRatio?: 'tall' | 'square' | 'banner' | 'wide';
+  presetType?: 'minimal_banner' | 'gradient_card' | 'photo_overlay' | 'glass';
+  linkUrl?: string;
+  linkLabel?: string;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// PHASE D: COMPREHENSIVE EVENT LOGGING & DRIVER DAILY STATISTICS TYPES
+// ══════════════════════════════════════════════════════════════════════
+
+export type AppActorRole = 'citizen' | 'driver' | 'admin' | 'system';
+
+export type AppEntityType = 
+  | 'request'
+  | 'user'
+  | 'driver'
+  | 'charity'
+  | 'lottery'
+  | 'shift'
+  | 'tariff'
+  | 'hero_slide'
+  | 'feedback'
+  | 'system';
+
+export type AppEventType = 
+  | 'request_created'                     // ثبت درخواست نوبت توسط شهروند
+  | 'request_assigned'                    // پذیرش درخواست توسط راننده
+  | 'request_batch_assigned'              // پذیرش گروهی درخواست‌ها توسط راننده
+  | 'request_cancelled_citizen'           // لغو نوبت توسط شهروند با درج علت
+  | 'request_cancelled_driver'            // انصراف راننده از پذیرش نوبت (بازگشت به صف)
+  | 'request_cancelled_admin'             // لغو نوبت توسط مدیریت سامانه
+  | 'request_trip_started'                // آغاز حرکت راننده به سمت مبدأ
+  | 'request_type_converted_to_charity'   // تبدیل نوع درخواست به نیکوکاری در میانه فرایند
+  | 'request_weighed_and_completed'       // توزین، تسویه و تکمیل سفارش توسط راننده
+  | 'weight_and_payout_recorded'          // ثبت تفکیکی وزن و مبلغ (نقدی / کارت / نیکوکاری)
+  | 'driver_issue_flagged'                // گزارش عدم حضور یا مشکل توسط راننده
+  | 'user_registered'                     // ثبت‌نام کاربر یا شهروند جدید
+  | 'user_logged_in'                      // ورود موفق کاربر به سامانه
+  | 'user_logged_out'                     // خروج کاربر از سامانه
+  | 'driver_logged_in'                    // ورود سفیر راننده به پنل ناوگان
+  | 'admin_logged_in'                     // ورود به پنل مدیریت
+  | 'lottery_event_entered'               // ثبت شماره در قرعه‌کشی مناسبتی زنده
+  | 'driver_rated_by_citizen'             // ثبت امتیاز و نظر شهروند برای راننده
+  | 'citizen_feedback_submitted'          // ارسال پیام، پیشنهاد یا انتقاد توسط شهروند
+  | 'shifts_matrix_updated'               // ویرایش و ذخیره ماتریس شیفت‌های ۷×۴ یا استثنائات
+  | 'waste_tariffs_updated'               // به‌روزرسانی نرخ و تعرفه مصوب اقلام بازیافتی
+  | 'hero_slides_updated'                 // به‌روزرسانی اسلایدها و بنرهای صفحه نخست
+  | 'lottery_period_created'              // ایجاد دوره جدید قرعه‌کشی
+  | 'lottery_winner_drawn';               // انتخاب برنده یا ثبت وضعیت برنده غایب
+
+export interface AppEventLog {
+  id: string;
+  eventType: AppEventType;
+  actorId: string;
+  actorRole: AppActorRole;
+  actorName: string;
+  entityId: string;
+  entityType: AppEntityType;
+  details: Record<string, any>;
+  timestamp: string; // ISO 8601
+  cityId?: CityId;
+  cityName?: string;
+  ipOrDevice?: string;
+}
+
+export interface DriverDailyStatRecord {
+  driverId: string;
+  driverName: string;
+  dateKey: string; // e.g. "1405-06-17" or "2026-09-08"
+  dateStr: string; // Persian date string e.g. "شنبه ۱۷ شهریور ۱۴۰۵"
+  cityId: CityId;
+  cityName: string;
+  totalKg: number;
+  completedRequestsCount: number;
+  directCardAmountTomans: number;
+  cashAmountTomans: number;
+  charityAmountsByCharity: Record<string, number>; // { [charityName: string]: amountTomans }
+  totalCharityAmountTomans: number;
+  totalPayoutTomans: number;
+  requestsIds: string[];
 }
 
 
